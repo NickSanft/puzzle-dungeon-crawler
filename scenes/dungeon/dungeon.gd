@@ -219,7 +219,10 @@ func _draw_first_person() -> void:
 			break
 
 	# Trigger floor markers behind walls so nearer walls occlude them.
-	for d in range(1, min(blocker, MAX_VIS_DEPTH) + 1):
+	# Triggers can only be on open tiles: depths 1..blocker-1 (the tile at
+	# depth=blocker is the wall itself).
+	var last_open: int = min(blocker - 1, MAX_VIS_DEPTH)
+	for d in range(1, last_open + 1):
 		var tt: Vector2i = _player_pos + fwd_v * d
 		var trig: Dictionary = _trigger_at(tt)
 		if not trig.is_empty():
@@ -230,8 +233,10 @@ func _draw_first_person() -> void:
 		back_frame.position.x += parallax_x
 		draw_rect(back_frame, COLOR_WALL_FAR)
 
-	var deepest: int = min(blocker, MAX_VIS_DEPTH)
-	for depth in range(deepest, -1, -1):
+	# Side walls are drawn for each open tile in the forward corridor, from
+	# far to near so nearer sides occlude farther ones. Skip the blocker
+	# depth (that tile is a wall; its sides are undefined).
+	for depth in range(last_open, -1, -1):
 		var tile_pos: Vector2i = _player_pos + fwd_v * depth
 		var near_frame: Rect2 = _frame_at(float(depth) + depth_offset)
 		var far_frame: Rect2 = _frame_at(float(depth + 1) + depth_offset)
