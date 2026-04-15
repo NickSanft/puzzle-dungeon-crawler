@@ -6,7 +6,7 @@ signal failed(wrong_cells: int)
 
 const CELL_EMPTY := 0
 const CELL_FILLED := 1
-const CELL_MARKED := 2
+const CELL_MARKED := -1
 
 const CELL_SIZE := 36
 const CELL_GAP := 2
@@ -25,6 +25,7 @@ var _row_clues_box: VBoxContainer
 var _col_clues_box: HBoxContainer
 var _status: Label
 var _submit_btn: Button
+var _selected_color: int = 1  # used only for color puzzles
 
 func load_puzzle(p: NonogramPuzzle, starting_hints: int = 0) -> void:
 	puzzle = p
@@ -43,12 +44,14 @@ func _apply_hints(n: int) -> void:
 	var filled_cells: Array = []
 	for y in puzzle.height:
 		for x in puzzle.width:
-			if puzzle.solution[y][x]:
+			var v = puzzle.solution[y][x]
+			if (typeof(v) == TYPE_BOOL and v) or (typeof(v) != TYPE_BOOL and int(v) != 0):
 				filled_cells.append(Vector2i(x, y))
 	filled_cells.shuffle()
 	for i in min(n, filled_cells.size()):
 		var c: Vector2i = filled_cells[i]
-		_state[c.y][c.x] = CELL_FILLED
+		var sol = puzzle.solution[c.y][c.x]
+		_state[c.y][c.x] = CELL_FILLED if typeof(sol) == TYPE_BOOL else int(sol)
 
 func _build_ui() -> void:
 	for c in get_children():
@@ -61,6 +64,8 @@ func _build_ui() -> void:
 	var max_col_clues := 1
 	for cc in puzzle.col_clues:
 		max_col_clues = max(max_col_clues, cc.size())
+	if puzzle.is_color:
+		max_row_clues = max(1, max_row_clues + 1)
 	var row_clue_width: int = max_row_clues * 20 + 8
 	var col_clue_height: int = max_col_clues * 20 + 8
 
@@ -85,12 +90,8 @@ func _build_ui() -> void:
 		v.custom_minimum_size = Vector2(CELL_SIZE, col_clue_height)
 		v.alignment = BoxContainer.ALIGNMENT_END
 		v.add_theme_constant_override("separation", 0)
-		for n in puzzle.col_clues[x]:
-			var lbl := Label.new()
-			lbl.text = str(n)
-			lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			lbl.custom_minimum_size = Vector2(CELL_SIZE, 20)
-			v.add_child(lbl)
+		for entry in puzzle.col_clues[x]:
+			v.add_child(_clue_label(entry, true))
 		_col_clues_box.add_child(v)
 
 	var mid_row := HBoxContainer.new()
@@ -105,11 +106,8 @@ func _build_ui() -> void:
 		h.custom_minimum_size = Vector2(row_clue_width, CELL_SIZE)
 		h.alignment = BoxContainer.ALIGNMENT_END
 		h.add_theme_constant_override("separation", 4)
-		for n in puzzle.row_clues[y]:
-			var lbl := Label.new()
-			lbl.text = str(n)
-			lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			h.add_child(lbl)
+		for entry in puzzle.row_clues[y]:
+			h.add_child(_clue_label(entry, false))
 		_row_clues_box.add_child(h)
 
 	_grid = GridContainer.new()
@@ -130,6 +128,29 @@ func _build_ui() -> void:
 			_paint_cell(x, y)
 		_cell_buttons.append(row_btns)
 
+	if puzzle.is_color:
+		var palette_box := HBoxContainer.new()
+		root.add_child(palette_box)
+		var palette_label := Label.new()
+		palette_label.text = "Color:"
+		palette_box.add_child(palette_label)
+		for ci in range(1, puzzle.palette.size()):
+			var swatch := Button.new()
+			swatch.custom_minimum_size = Vector2(32, 32)
+			swatch.focus_mode = Control.FOCUS_NONE
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = puzzle.palette[ci]
+			sb.border_width_left = 2
+			sb.border_width_right = 2
+			sb.border_width_top = 2
+			sb.border_width_bottom = 2
+			sb.border_color = Color(1, 1, 1, 0.9) if ci == _selected_color else Color(0, 0, 0, 0)
+			swatch.add_theme_stylebox_override("normal", sb)
+			swatch.add_theme_stylebox_override("hover", sb)
+			swatch.add_theme_stylebox_override("pressed", sb)
+			swatch.pressed.connect(_on_select_color.bind(ci))
+			palette_box.add_child(swatch)
+
 	var bottom := HBoxContainer.new()
 	root.add_child(bottom)
 	_status = Label.new()
@@ -140,27 +161,64 @@ func _build_ui() -> void:
 	_submit_btn.pressed.connect(_on_submit)
 	bottom.add_child(_submit_btn)
 
+func _clue_label(entry, center: bool) -> Label:
+	var lbl := Label.new()
+	lbl.custom_minimum_size = Vector2(CELL_SIZE if center else 0, 20)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if center else HORIZONTAL_ALIGNMENT_RIGHT
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	if typeof(entry) == TYPE_DICTIONARY:
+		lbl.text = str(int(entry.count))
+		var col: Color = puzzle.palette[int(entry.color)] if int(entry.color) < puzzle.palette.size() else Color.WHITE
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = col
+		sb.corner_radius_top_left = 3
+		sb.corner_radius_top_right = 3
+		sb.corner_radius_bottom_left = 3
+		sb.corner_radius_bottom_right = 3
+		sb.content_margin_left = 4
+		sb.content_margin_right = 4
+		lbl.add_theme_stylebox_override("normal", sb)
+		lbl.add_theme_color_override("font_color", _contrast_text(col))
+	else:
+		lbl.text = str(int(entry))
+	return lbl
+
+func _contrast_text(c: Color) -> Color:
+	var lum: float = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+	return Color.BLACK if lum > 0.55 else Color.WHITE
+
 func _on_cell_input(event: InputEvent, x: int, y: int) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			_cycle(x, y, CELL_FILLED)
+			var target: int = _selected_color if puzzle.is_color else CELL_FILLED
+			_cycle(x, y, target)
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			_cycle(x, y, CELL_MARKED)
 
 func _cycle(x: int, y: int, target: int) -> void:
 	_state[y][x] = CELL_EMPTY if _state[y][x] == target else target
 	_paint_cell(x, y)
-	if target == CELL_FILLED:
-		Audio.play_click()
-	else:
+	if target == CELL_MARKED:
 		Audio.play_mark()
+	else:
+		Audio.play_click()
+
+func _on_select_color(idx: int) -> void:
+	_selected_color = idx
+	_build_ui()
 
 func _paint_cell(x: int, y: int) -> void:
 	var b: Button = _cell_buttons[y][x] if y < _cell_buttons.size() else null
 	if b == null:
 		return
+	var val: int = int(_state[y][x])
+	var col: Color
+	if puzzle.is_color and val > 0:
+		col = puzzle.palette[val]
+	else:
+		col = cell_colors.get(val, cell_colors[CELL_EMPTY])
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = cell_colors[_state[y][x]]
+	sb.bg_color = col
 	b.add_theme_stylebox_override("normal", sb)
 	b.add_theme_stylebox_override("hover", sb)
 	b.add_theme_stylebox_override("pressed", sb)
@@ -169,10 +227,17 @@ func _on_submit() -> void:
 	var wrong := 0
 	for y in puzzle.height:
 		for x in puzzle.width:
-			var player_filled: bool = _state[y][x] == CELL_FILLED
-			var should_fill: bool = puzzle.solution[y][x]
-			if player_filled != should_fill:
-				wrong += 1
+			var s: int = int(_state[y][x])
+			if puzzle.is_color:
+				var expected: int = int(puzzle.solution[y][x])
+				var got: int = 0 if s <= 0 else s
+				if got != expected:
+					wrong += 1
+			else:
+				var player_filled: bool = s == CELL_FILLED
+				var should_fill: bool = puzzle.solution[y][x]
+				if player_filled != should_fill:
+					wrong += 1
 	if wrong == 0:
 		_status.text = "Solved!"
 		_submit_btn.disabled = true

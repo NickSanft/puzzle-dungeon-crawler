@@ -49,7 +49,12 @@ func _on_trigger_entered(room_type: String) -> void:
 
 func _open_puzzle(size: int) -> void:
 	_clear_overlay()
-	var puzzle := NonogramGenerator.generate(size, 0.55, true)
+	var use_color: bool = SaveSystem.has_unlock("color_nonograms") and GameState.room_index >= 3
+	var puzzle: NonogramPuzzle
+	if use_color:
+		puzzle = NonogramGenerator.generate_color(size, 0.6)
+	else:
+		puzzle = NonogramGenerator.generate(size, 0.55, true)
 	_current_board = NonogramBoardScene.instantiate()
 	_current_board.position = Vector2(40, 40)
 	_overlay.add_child(_current_board)
