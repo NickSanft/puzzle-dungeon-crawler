@@ -2,8 +2,10 @@ extends Control
 
 const DungeonScene := preload("res://scenes/dungeon/dungeon.tscn")
 const NonogramBoardScene := preload("res://scenes/puzzles/nonogram_board.tscn")
+const ShopScene := preload("res://scenes/ui/shop.tscn")
 
 const GLIMBO_REWARD_PER_SIZE := {5: 3, 10: 8, 15: 15}
+const BOSS_SIZE := 10
 
 @onready var _hud: Label = $HUD/HPGlimbos
 @onready var _message: Label = $HUD/Message
@@ -13,6 +15,8 @@ const GLIMBO_REWARD_PER_SIZE := {5: 3, 10: 8, 15: 15}
 var _dungeon: Node2D
 var _current_board: NonogramBoard
 var _current_size: int = 5
+var _current_room_type: String = "PUZZLE"
+var _current_shop: GlimboShop
 
 func _ready() -> void:
 	_dungeon = DungeonScene.instantiate()
@@ -33,19 +37,14 @@ func _on_room_entered(room_type: String, idx: int) -> void:
 	_clear_overlay()
 
 func _on_trigger_entered(room_type: String) -> void:
+	_current_room_type = room_type
 	match room_type:
 		"PUZZLE":
 			_open_puzzle(_current_size)
 		"SHOP":
-			_message.text = "Shop room — (not implemented yet). Press SPACE to advance."
-			set_process_unhandled_input(true)
+			_open_shop()
 		"BOSS":
-			_open_puzzle(10)
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_SPACE:
-		if _message.text.begins_with("Shop room"):
-			RunManager.advance_room()
+			_open_puzzle(BOSS_SIZE)
 
 func _open_puzzle(size: int) -> void:
 	_clear_overlay()
@@ -59,8 +58,20 @@ func _open_puzzle(size: int) -> void:
 
 func _on_puzzle_solved(_wrong: int, size: int) -> void:
 	var reward: int = GLIMBO_REWARD_PER_SIZE.get(size, 3)
+	if _current_room_type == "BOSS" and SaveSystem.has_unlock("extra_reward"):
+		reward *= 2
 	GameState.award_glimbos(reward)
 	await get_tree().create_timer(0.6).timeout
+	RunManager.advance_room()
+
+func _open_shop() -> void:
+	_clear_overlay()
+	_current_shop = ShopScene.instantiate()
+	_overlay.add_child(_current_shop)
+	_current_shop.closed.connect(_on_shop_closed)
+
+func _on_shop_closed() -> void:
+	_clear_overlay()
 	RunManager.advance_room()
 
 func _on_puzzle_failed(wrong: int) -> void:
@@ -74,6 +85,7 @@ func _clear_overlay() -> void:
 	for c in _overlay.get_children():
 		c.queue_free()
 	_current_board = null
+	_current_shop = null
 
 func _update_hud() -> void:
 	_hud.text = "HP: %d/%d   Glimbos(run): %d   Total: %d" % [
