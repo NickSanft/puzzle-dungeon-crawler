@@ -53,9 +53,12 @@ func _open_puzzle(size: int) -> void:
 	_current_board = NonogramBoardScene.instantiate()
 	_current_board.position = Vector2(40, 40)
 	_overlay.add_child(_current_board)
-	_current_board.load_puzzle(puzzle)
+	_current_board.load_puzzle(puzzle, _starting_hints())
 	_current_board.solved.connect(_on_puzzle_solved.bind(size))
 	_current_board.failed.connect(_on_puzzle_failed)
+
+func _starting_hints() -> int:
+	return 1 if SaveSystem.has_unlock("puzzle_hint") else 0
 
 func _on_puzzle_solved(_wrong: int, size: int) -> void:
 	var reward: int = GLIMBO_REWARD_PER_SIZE.get(size, 3)
@@ -73,7 +76,7 @@ func _open_boss() -> void:
 	_current_board = NonogramBoardScene.instantiate()
 	_current_board.position = Vector2(40, 40)
 	_overlay.add_child(_current_board)
-	_current_board.load_puzzle(boss.puzzle)
+	_current_board.load_puzzle(boss.puzzle, _starting_hints())
 	_current_board.solved.connect(_on_boss_solved)
 	_current_board.failed.connect(_on_puzzle_failed)
 
@@ -130,6 +133,9 @@ func _clear_overlay() -> void:
 	_current_shop = null
 
 func _update_hud() -> void:
-	_hud.text = "HP: %d/%d   Glimbos(run): %d   Total: %d" % [
-		GameState.hp, GameState.max_hp, GameState.glimbos_this_run, int(SaveSystem.data.glimbos)
+	var daily_tag := "  [DAILY]" if GameState.is_daily_run else ""
+	_hud.text = "HP %d/%d     Glimbos: %d this run (%d total)%s" % [
+		GameState.hp, GameState.max_hp,
+		GameState.glimbos_this_run, int(SaveSystem.data.glimbos),
+		daily_tag,
 	]

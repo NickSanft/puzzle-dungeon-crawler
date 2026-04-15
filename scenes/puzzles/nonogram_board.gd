@@ -26,7 +26,7 @@ var _col_clues_box: HBoxContainer
 var _status: Label
 var _submit_btn: Button
 
-func load_puzzle(p: NonogramPuzzle) -> void:
+func load_puzzle(p: NonogramPuzzle, starting_hints: int = 0) -> void:
 	puzzle = p
 	_state = []
 	for y in p.height:
@@ -34,7 +34,21 @@ func load_puzzle(p: NonogramPuzzle) -> void:
 		row.resize(p.width)
 		row.fill(CELL_EMPTY)
 		_state.append(row)
+	_apply_hints(starting_hints)
 	_build_ui()
+
+func _apply_hints(n: int) -> void:
+	if n <= 0:
+		return
+	var filled_cells: Array = []
+	for y in puzzle.height:
+		for x in puzzle.width:
+			if puzzle.solution[y][x]:
+				filled_cells.append(Vector2i(x, y))
+	filled_cells.shuffle()
+	for i in min(n, filled_cells.size()):
+		var c: Vector2i = filled_cells[i]
+		_state[c.y][c.x] = CELL_FILLED
 
 func _build_ui() -> void:
 	for c in get_children():
