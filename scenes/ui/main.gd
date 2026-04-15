@@ -5,6 +5,7 @@ const NonogramBoardScene := preload("res://scenes/puzzles/nonogram_board.tscn")
 const GLIMBO_REWARD_PER_SIZE := {5: 3, 10: 8, 15: 15}
 
 @onready var _label: Label = $VBox/Status
+@onready var _daily_info: Label = $VBox/DailyInfo
 @onready var _start_btn: Button = $VBox/StartRun
 @onready var _daily_btn: Button = $VBox/StartDaily
 @onready var _puzzle_btn: Button = $VBox/TestPuzzle
@@ -26,6 +27,19 @@ func _ready() -> void:
 func _refresh() -> void:
 	var g: int = int(SaveSystem.data.glimbos)
 	_label.text = "Glimbos: %d   Seed: %d   HP: %d / %d" % [g, RNG.seed_value, GameState.hp, GameState.max_hp]
+	_refresh_daily()
+
+func _refresh_daily() -> void:
+	var key := RNG.today_key()
+	var seed_value := RNG.daily_seed(key)
+	var best: Dictionary = SaveSystem.get_daily(key)
+	if best.is_empty():
+		_daily_info.text = "Today's daily (%s)  seed=%d\nBest: — (not attempted)" % [key, seed_value]
+	else:
+		_daily_info.text = "Today's daily (%s)  seed=%d\nBest: HP %d, time %.1fs, floor %d%s" % [
+			key, seed_value, int(best.hp_remaining), float(best.time_sec), int(best.get("floor", 1)),
+			"  ✓ won" if bool(best.get("won", false)) else "",
+		]
 
 func _on_hp_changed(_c: int, _m: int) -> void:
 	_refresh()

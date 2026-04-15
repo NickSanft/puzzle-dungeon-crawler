@@ -14,6 +14,8 @@ var glimbos_this_run: int = 0
 var current_floor: int = 0
 var room_index: int = 0
 var is_daily_run: bool = false
+var run_started_ticks: int = 0
+var daily_date_key: String = ""
 
 func start_run(daily: bool = false) -> void:
 	is_daily_run = daily
@@ -22,9 +24,12 @@ func start_run(daily: bool = false) -> void:
 	glimbos_this_run = 0
 	current_floor = 1
 	room_index = 0
+	run_started_ticks = Time.get_ticks_msec()
 	if daily:
-		RNG.set_seed(RNG.daily_seed())
+		daily_date_key = RNG.today_key()
+		RNG.set_seed(RNG.daily_seed(daily_date_key))
 	else:
+		daily_date_key = ""
 		RNG.randomize_from_time()
 	SaveSystem.data.stats.runs_started = int(SaveSystem.data.stats.runs_started) + 1
 	SaveSystem.save_to_disk()
@@ -51,6 +56,15 @@ func end_run(won: bool) -> void:
 	if won:
 		SaveSystem.data.stats.runs_won = int(SaveSystem.data.stats.runs_won) + 1
 		SaveSystem.save_to_disk()
+	if is_daily_run and daily_date_key != "":
+		var elapsed: float = (Time.get_ticks_msec() - run_started_ticks) / 1000.0
+		SaveSystem.record_daily(daily_date_key, {
+			"hp_remaining": hp,
+			"time_sec": elapsed,
+			"won": won,
+			"floor": current_floor,
+			"glimbos": glimbos_this_run,
+		})
 	run_ended.emit(won)
 
 func _bonus_max_hp() -> int:

@@ -15,6 +15,7 @@ var data: Dictionary = {
 		"runs_won": 0,
 		"puzzles_solved": 0,
 	},
+	"daily": {},
 }
 
 func _ready() -> void:
@@ -61,3 +62,17 @@ func unlock(id: String) -> void:
 
 func has_unlock(id: String) -> bool:
 	return id in data.unlocks
+
+func record_daily(date_key: String, record: Dictionary) -> bool:
+	var existing: Dictionary = data.daily.get(date_key, {})
+	var is_better := existing.is_empty() \
+		or int(record.get("hp_remaining", 0)) > int(existing.get("hp_remaining", -1)) \
+		or (int(record.get("hp_remaining", 0)) == int(existing.get("hp_remaining", -1)) \
+			and float(record.get("time_sec", 1e9)) < float(existing.get("time_sec", 1e9)))
+	if is_better:
+		data.daily[date_key] = record
+		save_to_disk()
+	return is_better
+
+func get_daily(date_key: String) -> Dictionary:
+	return data.daily.get(date_key, {})

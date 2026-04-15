@@ -32,9 +32,10 @@ func pick(arr: Array):
 		return null
 	return arr[_rng.randi_range(0, arr.size() - 1)]
 
+func today_key() -> String:
+	var t := Time.get_datetime_dict_from_system(true)
+	return "%04d-%02d-%02d" % [t.year, t.month, t.day]
+
 func daily_seed(date_utc: String = "") -> int:
-	var d := date_utc
-	if d == "":
-		var t := Time.get_datetime_dict_from_system(true)
-		d = "%04d-%02d-%02d" % [t.year, t.month, t.day]
+	var d := date_utc if date_utc != "" else today_key()
 	return hash(d)
