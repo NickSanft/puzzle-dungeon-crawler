@@ -37,8 +37,12 @@ func _rebuild_offers() -> void:
 		var info := VBoxContainer.new()
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(info)
+		var eff_cost: int = _effective_cost(int(offer.cost))
 		var name_lbl := Label.new()
-		name_lbl.text = "%s  (%d glimbos)" % [offer.name, offer.cost]
+		if eff_cost != int(offer.cost):
+			name_lbl.text = "%s  (%d glimbos, was %d)" % [offer.name, eff_cost, int(offer.cost)]
+		else:
+			name_lbl.text = "%s  (%d glimbos)" % [offer.name, eff_cost]
 		info.add_child(name_lbl)
 		var desc_lbl := Label.new()
 		desc_lbl.text = offer.desc
@@ -46,15 +50,21 @@ func _rebuild_offers() -> void:
 		info.add_child(desc_lbl)
 		var buy := Button.new()
 		buy.text = "Buy"
-		buy.disabled = int(SaveSystem.data.glimbos) < int(offer.cost)
+		buy.disabled = int(SaveSystem.data.glimbos) < eff_cost
 		buy.pressed.connect(_on_buy.bind(offer.id))
 		row.add_child(buy)
+
+func _effective_cost(raw: int) -> int:
+	var discount: float = float(Characters.effect(GameState.character_id, "shop_discount", 0.0))
+	if discount <= 0.0:
+		return raw
+	return max(1, int(round(float(raw) * (1.0 - discount))))
 
 func _on_buy(id: String) -> void:
 	var entry = _find_offer(id)
 	if entry == null:
 		return
-	if not SaveSystem.spend_glimbos(int(entry.cost)):
+	if not SaveSystem.spend_glimbos(_effective_cost(int(entry.cost))):
 		return
 	SaveSystem.unlock(id)
 	_offers.erase(entry)

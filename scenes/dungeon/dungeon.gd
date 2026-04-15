@@ -57,6 +57,7 @@ var _active: bool = true
 
 var _revealed: Dictionary = {}  # Vector2i -> true
 var _debug_reveal_all: bool = false
+var _character_reveal_all: bool = false  # e.g. Archivist permanent reveal
 
 # Animation state.
 var _is_animating: bool = false
@@ -88,6 +89,10 @@ func set_active(flag: bool) -> void:
 
 func set_debug_reveal_all(flag: bool) -> void:
 	_debug_reveal_all = flag
+	queue_redraw()
+
+func set_character_reveal_all(flag: bool) -> void:
+	_character_reveal_all = flag
 	queue_redraw()
 
 func _update_visibility() -> void:
@@ -333,7 +338,7 @@ func _draw_minimap() -> void:
 				origin + Vector2(x * MINIMAP_TILE, y * MINIMAP_TILE),
 				Vector2(MINIMAP_TILE, MINIMAP_TILE))
 			var cell := Vector2i(x, y)
-			if not (_debug_reveal_all or _revealed.has(cell)):
+			if not (_debug_reveal_all or _character_reveal_all or _revealed.has(cell)):
 				draw_rect(rect, COLOR_MINIMAP_UNSEEN)
 				continue
 			var c: Color = COLOR_MINIMAP_WALL if int(_tiles[y][x]) == Tile.WALL else COLOR_MINIMAP_FLOOR

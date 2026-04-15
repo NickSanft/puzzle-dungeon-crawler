@@ -4,6 +4,7 @@ const DungeonScene := preload("res://scenes/dungeon/dungeon.tscn")
 const NonogramBoardScene := preload("res://scenes/puzzles/nonogram_board.tscn")
 const SudokuBoardScene := preload("res://scenes/puzzles/sudoku_board.tscn")
 const ShopScene := preload("res://scenes/ui/shop.tscn")
+const PuzzleChoiceScene := preload("res://scenes/ui/puzzle_choice.tscn")
 
 const GLIMBO_REWARD_PER_SIZE := {5: 3, 7: 5, 10: 8, 15: 15}
 const SUDOKU_REWARD := 10
@@ -22,6 +23,7 @@ var _current_room_type: String = "PUZZLE"
 var _current_shop: GlimboShop
 var _current_boss_name: String = ""
 var _puzzles_solved_on_floor: int = 0
+var _pending_reward_mult: float = 1.0
 
 func _ready() -> void:
 	_dungeon = DungeonScene.instantiate()
@@ -44,7 +46,10 @@ func _on_reveal_toggled(on: bool) -> void:
 
 func _on_floor_started(floor_num: int, tiles: Array, triggers: Array, entrance: Vector2i) -> void:
 	_puzzles_solved_on_floor = 0
+	GameState.on_floor_changed()
 	_dungeon.load_maze(tiles, triggers, entrance)
+	_dungeon.set_character_reveal_all(
+		bool(Characters.effect(GameState.character_id, "reveal_maze", false)))
 	_dungeon.set_active(true)
 	_clear_overlay()
 	_message.text = "Floor %d / %d — %d puzzles, a shop, and a boss." % [
@@ -87,11 +92,26 @@ func _on_floor_completed(floor_num: int) -> void:
 func _open_puzzle(puzzle_size: int) -> void:
 	_clear_overlay()
 	_set_backdrop(true)
+	# Decide puzzle type up front so the choice card never lies about what
+	# you're about to play. Sudoku slots skip the choice screen entirely.
 	if _should_use_sudoku():
+		_pending_reward_mult = 1.0
 		_open_sudoku()
 		return
+	var choice: PuzzleChoice = PuzzleChoiceScene.instantiate()
+	_overlay.add_child(choice)
+	choice.show_choice(puzzle_size, GameState.current_floor)
+	choice.chosen.connect(func(opt: Dictionary):
+		choice.queue_free()
+		_pending_reward_mult = float(opt.reward_mult)
+		var density: float = clamp(
+			RunManager.density_for(GameState.current_floor) + float(opt.density_delta),
+			0.4, 0.78)
+		_spawn_nonogram(int(opt.size), density)
+	)
+
+func _spawn_nonogram(puzzle_size: int, density: float) -> void:
 	var use_color: bool = SaveSystem.has_unlock("color_nonograms") and _puzzles_solved_on_floor >= 2
-	var density: float = RunManager.density_for(GameState.current_floor)
 	var puzzle: NonogramPuzzle
 	if use_color:
 		puzzle = NonogramGenerator.generate_color(puzzle_size, density)
@@ -128,10 +148,15 @@ func _on_sudoku_solved(_wrong: int) -> void:
 	_resume_exploration("PUZZLE")
 
 func _starting_hints() -> int:
-	return 1 if SaveSystem.has_unlock("puzzle_hint") else 0
+	var n: int = 0
+	if SaveSystem.has_unlock("puzzle_hint"):
+		n += 1
+	n += int(Characters.effect(GameState.character_id, "bonus_hint_per_puzzle", 0))
+	return n
 
 func _on_puzzle_solved(_wrong: int, puzzle_size: int) -> void:
-	var reward: int = GLIMBO_REWARD_PER_SIZE.get(puzzle_size, 3)
+	var base_reward: int = GLIMBO_REWARD_PER_SIZE.get(puzzle_size, 3)
+	var reward: int = max(1, int(round(float(base_reward) * _pending_reward_mult)))
 	GameState.award_glimbos(reward)
 	_puzzles_solved_on_floor += 1
 	if _current_board != null and _current_board.has_method("show_reward_counter"):
@@ -145,7 +170,10 @@ func _open_boss() -> void:
 	var use_color: bool = SaveSystem.has_unlock("color_nonograms")
 	var boss: Dictionary = NonogramGenerator.from_boss_pattern(use_color)
 	_current_boss_name = str(boss.name)
-	_message.text = "BOSS: %s" % boss.name
+	var curse_suffix := ""
+	if GameState.curse_on_floor >= 3:
+		curse_suffix = "  (cursed ×%d)" % GameState.curse_on_floor
+	_message.text = "BOSS: %s%s" % [boss.name, curse_suffix]
 	var board: NonogramBoard = NonogramBoardScene.instantiate()
 	_overlay.add_child(board)
 	board.set_accent(PuzzleStyle.accent_for_floor(GameState.current_floor))
@@ -155,7 +183,9 @@ func _open_boss() -> void:
 	_current_board = board
 
 func _on_boss_solved(_wrong: int) -> void:
-	var reward: int = GLIMBO_REWARD_PER_SIZE.get(BOSS_SIZE, 8) * 2
+	var base: float = float(GLIMBO_REWARD_PER_SIZE.get(BOSS_SIZE, 8)) * 2.0
+	var char_mult: float = float(Characters.effect(GameState.character_id, "boss_reward_mult", 1.0))
+	var reward: int = int(round(base * GameState.boss_reward_multiplier() * char_mult))
 	if SaveSystem.has_unlock("extra_reward"):
 		reward *= 2
 	GameState.award_glimbos(reward)
@@ -191,7 +221,11 @@ func _resume_exploration(kind: String) -> void:
 		_dungeon.set_active(true)
 
 func _on_puzzle_failed(wrong: int) -> void:
-	GameState.take_damage(wrong)
+	# Cursed bosses hit harder: every wrong cell stings more.
+	var amount: int = wrong
+	if _current_room_type == "BOSS" and GameState.curse_on_floor >= 3:
+		amount = int(ceil(float(wrong) * (1.0 + GameState.boss_density_bonus() * 2.0)))
+	GameState.take_damage(amount)
 	_flash_damage()
 
 func _flash_damage() -> void:
@@ -227,10 +261,13 @@ func _set_backdrop(on: bool) -> void:
 
 func _update_hud() -> void:
 	var daily_tag := "  [DAILY]" if GameState.is_daily_run else ""
-	_hud.text = "HP %d/%d     Floor %d/%d     Puzzles left: %d     Glimbos: %d run / %d total%s" % [
+	var curse_tag := ""
+	if GameState.curse_on_floor > 0:
+		curse_tag = "  Curse: %d" % GameState.curse_on_floor
+	_hud.text = "HP %d/%d     Floor %d/%d     Puzzles left: %d     Glimbos: %d run / %d total%s%s" % [
 		GameState.hp, GameState.max_hp,
 		GameState.current_floor, RunManager.FLOORS_PER_RUN,
 		RunManager.puzzles_remaining(),
 		GameState.glimbos_this_run, int(SaveSystem.data.glimbos),
-		daily_tag,
+		curse_tag, daily_tag,
 	]

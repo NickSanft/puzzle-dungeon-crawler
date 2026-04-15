@@ -14,7 +14,13 @@ func _ready() -> void:
 		_headline.text = "Run Complete!"
 	else:
 		_headline.text = "You Fell to the Puzzles"
+	var rating: String = str(summary.get("rating", "")) if summary.has("rating") else ""
+	var character: Dictionary = Characters.get_by_id(GameState.character_id)
 	var lines: Array[String] = []
+	if rating != "":
+		lines.append("Rating: %s" % rating)
+		lines.append("")
+	lines.append("Character: %s" % str(character.name))
 	lines.append("Floor reached: %d" % int(summary.get("floor", 1)))
 	lines.append("Puzzles solved this run: %d" % int(summary.get("puzzles_run", 0)))
 	lines.append("Glimbos earned this run: %d" % int(summary.get("glimbos_run", 0)))

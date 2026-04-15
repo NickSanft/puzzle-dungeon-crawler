@@ -1,9 +1,13 @@
 extends Control
 
+const CharacterSelectScene := preload("res://scenes/ui/character_select.tscn")
+
 @onready var _label: Label = $VBox/Status
 @onready var _daily_info: Label = $VBox/DailyInfo
 @onready var _start_btn: Button = $VBox/StartRun
 @onready var _daily_btn: Button = $VBox/StartDaily
+
+var _pending_daily: bool = false
 
 func _ready() -> void:
 	_start_btn.pressed.connect(_on_start_run)
@@ -35,11 +39,21 @@ func _on_hp_changed(_c: int, _m: int) -> void:
 	_refresh()
 
 func _on_start_run() -> void:
-	GameState.start_run(false)
-	get_tree().change_scene_to_file("res://scenes/dungeon/run_scene.tscn")
+	_pending_daily = false
+	_show_character_select()
 
 func _on_start_daily() -> void:
-	GameState.start_run(true)
+	_pending_daily = true
+	_show_character_select()
+
+func _show_character_select() -> void:
+	var select: Control = CharacterSelectScene.instantiate()
+	select.chosen.connect(_on_character_chosen)
+	add_child(select)
+
+func _on_character_chosen(character_id: String) -> void:
+	GameState.character_id = character_id
+	GameState.start_run(_pending_daily)
 	get_tree().change_scene_to_file("res://scenes/dungeon/run_scene.tscn")
 
 func _on_run_ended(won: bool) -> void:
