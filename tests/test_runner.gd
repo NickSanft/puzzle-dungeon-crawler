@@ -20,13 +20,22 @@ func _ready() -> void:
 func _test_rng(t: TestFramework) -> void:
 	t.suite("RNG")
 	RNG.set_seed(12345)
-	var a := [RNG.randi(), RNG.randi(), RNG.randi()]
+	var a: Array = []
+	for _i in 8:
+		a.append(RNG.randi())
 	RNG.set_seed(12345)
-	var b := [RNG.randi(), RNG.randi(), RNG.randi()]
+	var b: Array = []
+	for _i in 8:
+		b.append(RNG.randi())
 	t.assert_eq(a, b, "same seed yields same sequence")
+	# Compare an 8-value sequence from a different seed. A single-value
+	# comparison is flaky (seeds can collide on the first number); an 8-value
+	# collision is astronomically unlikely for any non-trivial RNG.
 	RNG.set_seed(99999)
-	var c := RNG.randi()
-	t.assert_false(a[0] == c, "different seed yields different value")
+	var c: Array = []
+	for _i in 8:
+		c.append(RNG.randi())
+	t.assert_false(a == c, "different seed yields different sequence")
 	var key := RNG.today_key()
 	t.assert_true(key.length() == 10 and key[4] == "-" and key[7] == "-", "today_key format YYYY-MM-DD")
 
