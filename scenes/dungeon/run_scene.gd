@@ -229,6 +229,8 @@ func _on_puzzle_failed(wrong: int) -> void:
 	_flash_damage()
 
 func _flash_damage() -> void:
+	if bool(SaveSystem.setting("reduced_motion", false)):
+		return
 	var flash := ColorRect.new()
 	flash.color = Color(0.9, 0.1, 0.1, 0.35)
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE

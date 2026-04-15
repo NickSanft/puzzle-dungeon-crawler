@@ -11,6 +11,10 @@ const CELL_MARKED := -1
 const CELL_SIZE := 36
 const CELL_GAP := 2
 
+# Colorblind-mode symbol set — each colour index gets a distinct glyph so
+# the puzzle is still solvable without colour perception.
+const COLORBLIND_GLYPHS := ["", "●", "▲", "■", "◆", "✚", "★"]
+
 var puzzle: NonogramPuzzle
 var _accent: Color = PuzzleStyle.NONO_ACCENT
 var _state: Array = []
@@ -206,8 +210,14 @@ func _clue_label(entry, center: bool) -> Label:
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.add_theme_font_size_override("font_size", PuzzleStyle.FONT_CLUE)
 	if typeof(entry) == TYPE_DICTIONARY:
-		lbl.text = str(int(entry.count))
-		var col: Color = puzzle.palette[int(entry.color)] if int(entry.color) < puzzle.palette.size() else Color.WHITE
+		var color_idx: int = int(entry.color)
+		var count: int = int(entry.count)
+		if bool(SaveSystem.setting("colorblind", false)):
+			var glyph: String = COLORBLIND_GLYPHS[color_idx % COLORBLIND_GLYPHS.size()]
+			lbl.text = "%d%s" % [count, glyph]
+		else:
+			lbl.text = str(count)
+		var col: Color = puzzle.palette[color_idx] if color_idx < puzzle.palette.size() else Color.WHITE
 		var sb: StyleBoxFlat = PuzzleStyle.cell_style(col, 3, 0, Color(0, 0, 0, 0))
 		sb.content_margin_left = 5
 		sb.content_margin_right = 5
@@ -274,6 +284,12 @@ func _paint_cell(x: int, y: int) -> void:
 	b.add_theme_stylebox_override("normal", sb)
 	b.add_theme_stylebox_override("hover", sb)
 	b.add_theme_stylebox_override("pressed", sb)
+	# Colorblind mode: render a distinct glyph per colour index on filled cells.
+	if puzzle.is_color and is_filled and bool(SaveSystem.setting("colorblind", false)):
+		b.text = COLORBLIND_GLYPHS[val % COLORBLIND_GLYPHS.size()]
+		b.add_theme_color_override("font_color", PuzzleStyle.contrast_text(col))
+	else:
+		b.text = ""
 
 func _on_submit() -> void:
 	var wrong := 0
@@ -383,6 +399,8 @@ func _set_line_dim(container: Container, done: bool) -> void:
 	container.modulate = Color(1, 1, 1, target)
 
 func _play_entrance() -> void:
+	if bool(SaveSystem.setting("reduced_motion", false)):
+		return
 	# Start hidden so nothing flashes in the wrong place on frame 0.
 	for y in puzzle.height:
 		for x in puzzle.width:
@@ -404,6 +422,8 @@ func _play_entrance() -> void:
 				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT).set_delay(delay)
 
 func _play_solve_ceremony() -> void:
+	if bool(SaveSystem.setting("reduced_motion", false)):
+		return
 	# Wave of brightness across the board (reading order), then a gentle zoom bump.
 	var center: Control = get_child(0) as Control
 	var panel: Control = center.get_child(0) as Control if center != null and center.get_child_count() > 0 else null
@@ -444,6 +464,8 @@ func show_reward_counter(reward: int) -> void:
 	tw.tween_callback(label.queue_free)
 
 func _shake() -> void:
+	if bool(SaveSystem.setting("reduced_motion", false)):
+		return
 	var base: Vector2 = position
 	var tw := create_tween()
 	for i in 6:

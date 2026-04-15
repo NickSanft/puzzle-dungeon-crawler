@@ -1,17 +1,20 @@
 extends Control
 
 const CharacterSelectScene := preload("res://scenes/ui/character_select.tscn")
+const SettingsMenuScene := preload("res://scenes/ui/settings_menu.tscn")
 
 @onready var _label: Label = $VBox/Status
 @onready var _daily_info: Label = $VBox/DailyInfo
 @onready var _start_btn: Button = $VBox/StartRun
 @onready var _daily_btn: Button = $VBox/StartDaily
+@onready var _settings_btn: Button = $VBox/Settings
 
 var _pending_daily: bool = false
 
 func _ready() -> void:
 	_start_btn.pressed.connect(_on_start_run)
 	_daily_btn.pressed.connect(_on_start_daily)
+	_settings_btn.pressed.connect(_on_open_settings)
 	GameState.run_started.connect(_refresh)
 	GameState.run_ended.connect(_on_run_ended)
 	GameState.hp_changed.connect(_on_hp_changed)
@@ -58,3 +61,8 @@ func _on_character_chosen(character_id: String) -> void:
 
 func _on_run_ended(won: bool) -> void:
 	_label.text = "Run ended. Won: %s" % str(won)
+
+func _on_open_settings() -> void:
+	var menu: Control = SettingsMenuScene.instantiate()
+	menu.closed.connect(func(): menu.queue_free())
+	add_child(menu)

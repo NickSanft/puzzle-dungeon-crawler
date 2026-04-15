@@ -14,6 +14,14 @@ const FLOOR_ACCENTS: Array[Color] = [
 	Color(0.45, 0.72, 0.95),  # floor 2 — steel blue
 	Color(0.85, 0.3, 0.45),   # floor 3 — blood crimson
 ]
+
+# Cosmetic accent palettes the player can unlock in the shop and pick in
+# settings. When selected, these override the per-floor accent.
+const COSMETIC_PALETTES := [
+	{"id": "mint", "name": "Mint", "accent": Color(0.45, 0.88, 0.72)},
+	{"id": "rose", "name": "Rose", "accent": Color(0.95, 0.52, 0.68)},
+	{"id": "slate", "name": "Slate", "accent": Color(0.65, 0.72, 0.85)},
+]
 const NONO_CELL_EMPTY := Color(0.19, 0.18, 0.22)
 const NONO_CELL_FILLED := Color(0.94, 0.92, 0.88)
 const NONO_CELL_MARKED := Color(0.42, 0.23, 0.26)
@@ -117,6 +125,12 @@ static func contrast_text(c: Color) -> Color:
 	return Color.BLACK if lum > 0.55 else Color.WHITE
 
 static func accent_for_floor(floor_num: int) -> Color:
+	# A selected cosmetic palette overrides the per-floor accent entirely.
+	var cosmetic_id: String = str(SaveSystem.data.get("cosmetic_palette", ""))
+	if cosmetic_id != "":
+		for entry in COSMETIC_PALETTES:
+			if str(entry.id) == cosmetic_id:
+				return entry.accent
 	var idx: int = clamp(floor_num - 1, 0, FLOOR_ACCENTS.size() - 1)
 	return FLOOR_ACCENTS[idx]
 

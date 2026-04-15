@@ -227,6 +227,8 @@ func _paint_cell(x: int, y: int) -> void:
 	b.add_theme_color_override("font_color", text_col)
 
 func _play_entrance() -> void:
+	if bool(SaveSystem.setting("reduced_motion", false)):
+		return
 	for y in SudokuPuzzle.SIZE:
 		for x in SudokuPuzzle.SIZE:
 			var b: Button = _cell_buttons[y][x]
@@ -245,6 +247,8 @@ func _play_entrance() -> void:
 				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT).set_delay(delay)
 
 func _play_solve_ceremony() -> void:
+	if bool(SaveSystem.setting("reduced_motion", false)):
+		return
 	var center: Control = get_child(0) as Control
 	var panel: Control = center.get_child(0) as Control if center != null and center.get_child_count() > 0 else null
 	for y in SudokuPuzzle.SIZE:

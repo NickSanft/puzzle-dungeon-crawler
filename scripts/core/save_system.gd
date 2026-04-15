@@ -17,6 +17,11 @@ var data: Dictionary = {
 		"puzzles_solved": 0,
 	},
 	"daily": {},
+	"settings": {
+		"colorblind": false,
+		"reduced_motion": false,
+	},
+	"cosmetic_palette": "",
 }
 
 func _ready() -> void:
@@ -75,6 +80,20 @@ func unlock(id: String) -> void:
 
 func has_unlock(id: String) -> bool:
 	return id in data.unlocks
+
+func setting(key: String, default_value = false) -> Variant:
+	var s: Dictionary = data.get("settings", {})
+	return s.get(key, default_value)
+
+func set_setting(key: String, value) -> void:
+	if not data.has("settings"):
+		data.settings = {}
+	data.settings[key] = value
+	save_to_disk()
+
+func set_cosmetic_palette(id: String) -> void:
+	data.cosmetic_palette = id
+	save_to_disk()
 
 func record_daily(date_key: String, record: Dictionary) -> bool:
 	var existing: Dictionary = data.daily.get(date_key, {})

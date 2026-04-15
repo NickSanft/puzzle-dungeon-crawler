@@ -51,6 +51,13 @@ const CATALOG := [
 		"desc": "Boss puzzles award double Glimbos.",
 		"cost": 200,
 	},
+	# Cosmetics — purely decorative, enable a palette in Settings.
+	{"id": "cosmetic_mint", "name": "Mint Accent (cosmetic)",
+		"desc": "Switch the UI accent to a cool mint green.", "cost": 80},
+	{"id": "cosmetic_rose", "name": "Rose Accent (cosmetic)",
+		"desc": "Switch the UI accent to a warm pink.", "cost": 80},
+	{"id": "cosmetic_slate", "name": "Slate Accent (cosmetic)",
+		"desc": "Switch the UI accent to a cool slate blue-grey.", "cost": 80},
 ]
 
 static func available_offers() -> Array:
