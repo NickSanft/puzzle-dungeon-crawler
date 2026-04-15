@@ -1,7 +1,8 @@
 extends Node
 
-const SAVE_PATH := "user://save.json"
 const SAVE_VERSION := 1
+
+var save_path: String = "user://save.json"
 
 signal loaded
 signal saved
@@ -21,10 +22,22 @@ var data: Dictionary = {
 func _ready() -> void:
 	load_from_disk()
 
+func reset_for_test(path: String) -> void:
+	save_path = path
+	data = {
+		"version": SAVE_VERSION,
+		"glimbos": 0,
+		"unlocks": [],
+		"stats": {"runs_started": 0, "runs_won": 0, "puzzles_solved": 0},
+		"daily": {},
+	}
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
 func load_from_disk() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
+	if not FileAccess.file_exists(save_path):
 		return
-	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	var f := FileAccess.open(save_path, FileAccess.READ)
 	if f == null:
 		return
 	var txt := f.get_as_text()
@@ -35,9 +48,9 @@ func load_from_disk() -> void:
 	loaded.emit()
 
 func save_to_disk() -> void:
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	if f == null:
-		push_error("SaveSystem: could not open %s for write" % SAVE_PATH)
+		push_error("SaveSystem: could not open %s for write" % save_path)
 		return
 	f.store_string(JSON.stringify(data, "\t"))
 	f.close()

@@ -54,6 +54,10 @@ jobs:
           mkdir -p exports/web
           godot --headless --import || true
 
+      - name: Run unit tests
+        run: |
+          godot --headless res://tests/test_runner.tscn
+
       - name: Export Web build
         run: |
           godot --headless --export-release "Web" exports/web/index.html
