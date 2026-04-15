@@ -35,6 +35,7 @@ func _ready() -> void:
 	_reveal_btn.toggled.connect(_on_reveal_toggled)
 	RunManager.begin_floor()
 	_update_hud()
+	Audio.start_ambient(0.45)
 
 func _on_reveal_toggled(on: bool) -> void:
 	_dungeon.set_debug_reveal_all(on)
@@ -97,6 +98,7 @@ func _open_puzzle(puzzle_size: int) -> void:
 	var board: NonogramBoard = NonogramBoardScene.instantiate()
 	board.position = Vector2(40, 40)
 	_overlay.add_child(board)
+	board.set_accent(PuzzleStyle.accent_for_floor(GameState.current_floor))
 	board.load_puzzle(puzzle, _starting_hints())
 	board.solved.connect(_on_puzzle_solved.bind(puzzle_size))
 	board.failed.connect(_on_puzzle_failed)
@@ -119,7 +121,9 @@ func _open_sudoku() -> void:
 func _on_sudoku_solved(_wrong: int) -> void:
 	GameState.award_glimbos(SUDOKU_REWARD)
 	_puzzles_solved_on_floor += 1
-	await get_tree().create_timer(0.6).timeout
+	if _current_board != null and _current_board.has_method("show_reward_counter"):
+		_current_board.show_reward_counter(SUDOKU_REWARD)
+	await get_tree().create_timer(0.9).timeout
 	_resume_exploration("PUZZLE")
 
 func _starting_hints() -> int:
@@ -129,7 +133,9 @@ func _on_puzzle_solved(_wrong: int, puzzle_size: int) -> void:
 	var reward: int = GLIMBO_REWARD_PER_SIZE.get(puzzle_size, 3)
 	GameState.award_glimbos(reward)
 	_puzzles_solved_on_floor += 1
-	await get_tree().create_timer(0.6).timeout
+	if _current_board != null and _current_board.has_method("show_reward_counter"):
+		_current_board.show_reward_counter(reward)
+	await get_tree().create_timer(0.9).timeout
 	_resume_exploration("PUZZLE")
 
 func _open_boss() -> void:
@@ -141,6 +147,7 @@ func _open_boss() -> void:
 	var board: NonogramBoard = NonogramBoardScene.instantiate()
 	board.position = Vector2(40, 40)
 	_overlay.add_child(board)
+	board.set_accent(PuzzleStyle.accent_for_floor(GameState.current_floor))
 	board.load_puzzle(boss.puzzle, _starting_hints())
 	board.solved.connect(_on_boss_solved)
 	board.failed.connect(_on_puzzle_failed)
@@ -152,6 +159,8 @@ func _on_boss_solved(_wrong: int) -> void:
 		reward *= 2
 	GameState.award_glimbos(reward)
 	Audio.play_boss_win()
+	if _current_board != null and _current_board.has_method("show_reward_counter"):
+		_current_board.show_reward_counter(reward)
 	var banner := Label.new()
 	banner.text = "%s DEFEATED!" % _current_boss_name.to_upper()
 	banner.add_theme_font_size_override("font_size", 36)
@@ -195,6 +204,7 @@ func _flash_damage() -> void:
 
 func _on_run_ended(_won: bool) -> void:
 	_dungeon.set_active(false)
+	Audio.stop_ambient()
 	await get_tree().create_timer(0.8).timeout
 	get_tree().change_scene_to_file("res://scenes/ui/end_screen.tscn")
 

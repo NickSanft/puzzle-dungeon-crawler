@@ -62,7 +62,6 @@ var _debug_reveal_all: bool = false
 var _is_animating: bool = false
 var _anim_kind: String = ""  # "forward", "back", "turn", "strafe"
 var _anim_progress: float = 0.0
-var _anim_strafe_dir: int = 0  # -1 left, +1 right
 
 func _ready() -> void:
 	queue_redraw()
@@ -146,7 +145,6 @@ func _try_step(forward: int, strafe: int, kind: String) -> void:
 	if not _is_walkable(next):
 		Audio.play_damage()
 		return
-	_anim_strafe_dir = strafe
 	_begin_move(next, kind)
 
 func _begin_move(target: Vector2i, kind: String) -> void:
@@ -238,10 +236,10 @@ func _draw_first_person() -> void:
 		depth_offset = -_anim_progress
 	elif _anim_kind == "back":
 		depth_offset = _anim_progress
-	# Small horizontal parallax for strafe so it feels like sliding sideways.
+	# Strafe intentionally has no parallax: a "lean and return" sinusoid
+	# reads as a wall-bump shake, not sideways motion. The minimap chevron
+	# sliding to the new tile is feedback enough.
 	var parallax_x: float = 0.0
-	if _anim_kind == "strafe":
-		parallax_x = float(-_anim_strafe_dir) * VIEW_W * 0.15 * sin(_anim_progress * PI)
 
 	draw_rect(Rect2(parallax_x, 0, VIEW_W, VIEW_H * 0.5), COLOR_CEILING)
 	draw_rect(Rect2(parallax_x, VIEW_H * 0.5, VIEW_W, VIEW_H * 0.5), COLOR_FLOOR)

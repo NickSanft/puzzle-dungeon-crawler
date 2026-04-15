@@ -43,9 +43,12 @@ static func _row_has_fill(row: Array) -> bool:
 	return false
 
 const DEFAULT_COLOR_PALETTES := [
-	[Color(0, 0, 0, 0), Color(0.95, 0.45, 0.35), Color(0.3, 0.7, 0.95), Color(0.95, 0.85, 0.35)],
-	[Color(0, 0, 0, 0), Color(0.4, 0.8, 0.5), Color(0.9, 0.4, 0.7), Color(0.6, 0.5, 0.9)],
-	[Color(0, 0, 0, 0), Color(0.95, 0.6, 0.25), Color(0.35, 0.85, 0.75), Color(0.85, 0.85, 0.9)],
+	# Ember — warm analogous hues with a cool accent
+	[Color(0, 0, 0, 0), Color(0.87, 0.36, 0.24), Color(0.95, 0.67, 0.30), Color(0.45, 0.62, 0.80)],
+	# Moss — muted greens + dusty rose
+	[Color(0, 0, 0, 0), Color(0.48, 0.66, 0.42), Color(0.85, 0.70, 0.55), Color(0.82, 0.45, 0.55)],
+	# Twilight — deep cool tones with a punch of warm
+	[Color(0, 0, 0, 0), Color(0.38, 0.48, 0.72), Color(0.56, 0.42, 0.75), Color(0.95, 0.78, 0.45)],
 ]
 
 static func generate_color(size: int, density: float = 0.6) -> NonogramPuzzle:
