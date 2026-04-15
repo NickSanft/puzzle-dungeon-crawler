@@ -75,7 +75,8 @@ func _on_puzzle_solved(_wrong: int, size: int) -> void:
 
 func _open_boss() -> void:
 	_clear_overlay()
-	var boss := NonogramGenerator.from_boss_pattern()
+	var use_color: bool = SaveSystem.has_unlock("color_nonograms")
+	var boss := NonogramGenerator.from_boss_pattern(use_color)
 	_current_boss_name = boss.name
 	_message.text = "BOSS: %s" % boss.name
 	_current_board = NonogramBoardScene.instantiate()

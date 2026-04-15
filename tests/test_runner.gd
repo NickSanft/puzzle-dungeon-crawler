@@ -137,3 +137,13 @@ func _test_boss_patterns(t: TestFramework) -> void:
 		t.assert_eq(grid.size(), 10, "%s has 10 rows" % pattern.name)
 		for row in grid:
 			t.assert_eq(row.size(), 10, "%s row is 10 wide" % pattern.name)
+	for cpat in BossPatterns.COLOR_PATTERNS:
+		var cgrid: Array = BossPatterns.to_int_grid(cpat)
+		t.assert_eq(cgrid.size(), 10, "%s (color) has 10 rows" % cpat.name)
+		for row in cgrid:
+			t.assert_eq(row.size(), 10, "%s (color) row is 10 wide" % cpat.name)
+		var max_idx := 0
+		for row in cgrid:
+			for v in row:
+				max_idx = max(max_idx, int(v))
+		t.assert_true(max_idx < cpat.palette.size(), "%s uses only indices within palette" % cpat.name)

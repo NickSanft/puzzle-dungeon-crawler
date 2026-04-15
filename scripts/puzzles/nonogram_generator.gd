@@ -78,7 +78,14 @@ static func generate_color(size: int, density: float = 0.6) -> NonogramPuzzle:
 			grid[RNG.randi_range(0, size - 1)][x] = RNG.randi_range(1, num_colors)
 	return NonogramPuzzle.from_color_solution(grid, palette)
 
-static func from_boss_pattern() -> Dictionary:
+static func from_boss_pattern(prefer_color: bool = false) -> Dictionary:
+	if prefer_color:
+		var cpat := BossPatterns.random_color_pattern()
+		var cgrid := BossPatterns.to_int_grid(cpat)
+		return {
+			"puzzle": NonogramPuzzle.from_color_solution(cgrid, cpat.palette),
+			"name": cpat.name,
+		}
 	var pattern := BossPatterns.random_pattern()
 	var grid := BossPatterns.to_bool_grid(pattern)
 	return {
