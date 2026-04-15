@@ -41,3 +41,11 @@ static func _row_has_fill(row: Array) -> bool:
 		if c:
 			return true
 	return false
+
+static func from_boss_pattern() -> Dictionary:
+	var pattern := BossPatterns.random_pattern()
+	var grid := BossPatterns.to_bool_grid(pattern)
+	return {
+		"puzzle": NonogramPuzzle.from_solution(grid),
+		"name": pattern.name,
+	}

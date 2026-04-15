@@ -17,6 +17,7 @@ var _current_board: NonogramBoard
 var _current_size: int = 5
 var _current_room_type: String = "PUZZLE"
 var _current_shop: GlimboShop
+var _current_boss_name: String = ""
 
 func _ready() -> void:
 	_dungeon = DungeonScene.instantiate()
@@ -44,7 +45,7 @@ func _on_trigger_entered(room_type: String) -> void:
 		"SHOP":
 			_open_shop()
 		"BOSS":
-			_open_puzzle(BOSS_SIZE)
+			_open_boss()
 
 func _open_puzzle(size: int) -> void:
 	_clear_overlay()
@@ -62,6 +63,31 @@ func _on_puzzle_solved(_wrong: int, size: int) -> void:
 		reward *= 2
 	GameState.award_glimbos(reward)
 	await get_tree().create_timer(0.6).timeout
+	RunManager.advance_room()
+
+func _open_boss() -> void:
+	_clear_overlay()
+	var boss := NonogramGenerator.from_boss_pattern()
+	_current_boss_name = boss.name
+	_message.text = "BOSS: %s" % boss.name
+	_current_board = NonogramBoardScene.instantiate()
+	_current_board.position = Vector2(40, 40)
+	_overlay.add_child(_current_board)
+	_current_board.load_puzzle(boss.puzzle)
+	_current_board.solved.connect(_on_boss_solved)
+	_current_board.failed.connect(_on_puzzle_failed)
+
+func _on_boss_solved(_wrong: int) -> void:
+	var reward: int = GLIMBO_REWARD_PER_SIZE.get(BOSS_SIZE, 8) * 2
+	if SaveSystem.has_unlock("extra_reward"):
+		reward *= 2
+	GameState.award_glimbos(reward)
+	var banner := Label.new()
+	banner.text = "%s DEFEATED!" % _current_boss_name.to_upper()
+	banner.add_theme_font_size_override("font_size", 42)
+	banner.position = Vector2(40, 460)
+	_overlay.add_child(banner)
+	await get_tree().create_timer(1.8).timeout
 	RunManager.advance_room()
 
 func _open_shop() -> void:

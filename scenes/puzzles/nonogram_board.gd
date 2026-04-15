@@ -9,6 +9,7 @@ const CELL_FILLED := 1
 const CELL_MARKED := 2
 
 const CELL_SIZE := 36
+const CELL_GAP := 2
 
 @export var cell_colors := {
 	CELL_EMPTY: Color(0.15, 0.15, 0.18),
@@ -40,52 +41,67 @@ func _build_ui() -> void:
 		c.queue_free()
 	_cell_buttons = []
 
+	var max_row_clues := 1
+	for rc in puzzle.row_clues:
+		max_row_clues = max(max_row_clues, rc.size())
+	var max_col_clues := 1
+	for cc in puzzle.col_clues:
+		max_col_clues = max(max_col_clues, cc.size())
+	var row_clue_width: int = max_row_clues * 20 + 8
+	var col_clue_height: int = max_col_clues * 20 + 8
+
 	var root := VBoxContainer.new()
 	root.anchor_right = 1.0
 	root.anchor_bottom = 1.0
 	add_child(root)
 
 	var top_row := HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 0)
 	root.add_child(top_row)
 
 	var corner := Control.new()
-	corner.custom_minimum_size = Vector2(CELL_SIZE * 3, CELL_SIZE * 3)
+	corner.custom_minimum_size = Vector2(row_clue_width, col_clue_height)
 	top_row.add_child(corner)
 
 	_col_clues_box = HBoxContainer.new()
-	_col_clues_box.add_theme_constant_override("separation", 0)
+	_col_clues_box.add_theme_constant_override("separation", CELL_GAP)
 	top_row.add_child(_col_clues_box)
 	for x in puzzle.width:
 		var v := VBoxContainer.new()
-		v.custom_minimum_size = Vector2(CELL_SIZE, CELL_SIZE * 3)
+		v.custom_minimum_size = Vector2(CELL_SIZE, col_clue_height)
 		v.alignment = BoxContainer.ALIGNMENT_END
+		v.add_theme_constant_override("separation", 0)
 		for n in puzzle.col_clues[x]:
 			var lbl := Label.new()
 			lbl.text = str(n)
 			lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			lbl.custom_minimum_size = Vector2(CELL_SIZE, 20)
 			v.add_child(lbl)
 		_col_clues_box.add_child(v)
 
 	var mid_row := HBoxContainer.new()
+	mid_row.add_theme_constant_override("separation", 0)
 	root.add_child(mid_row)
 
 	_row_clues_box = VBoxContainer.new()
-	_row_clues_box.add_theme_constant_override("separation", 0)
+	_row_clues_box.add_theme_constant_override("separation", CELL_GAP)
 	mid_row.add_child(_row_clues_box)
 	for y in puzzle.height:
 		var h := HBoxContainer.new()
-		h.custom_minimum_size = Vector2(CELL_SIZE * 3, CELL_SIZE)
+		h.custom_minimum_size = Vector2(row_clue_width, CELL_SIZE)
 		h.alignment = BoxContainer.ALIGNMENT_END
+		h.add_theme_constant_override("separation", 4)
 		for n in puzzle.row_clues[y]:
 			var lbl := Label.new()
 			lbl.text = str(n)
+			lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			h.add_child(lbl)
 		_row_clues_box.add_child(h)
 
 	_grid = GridContainer.new()
 	_grid.columns = puzzle.width
-	_grid.add_theme_constant_override("h_separation", 2)
-	_grid.add_theme_constant_override("v_separation", 2)
+	_grid.add_theme_constant_override("h_separation", CELL_GAP)
+	_grid.add_theme_constant_override("v_separation", CELL_GAP)
 	mid_row.add_child(_grid)
 	for y in puzzle.height:
 		var row_btns: Array = []
