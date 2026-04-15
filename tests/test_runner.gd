@@ -13,6 +13,7 @@ func _ready() -> void:
 	_test_facing_math(t)
 	_test_sudoku(t)
 	_test_run_manager(t)
+	_test_maze(t)
 	var ok := t.report()
 	get_tree().quit(0 if ok else 1)
 
@@ -192,3 +193,29 @@ func _test_facing_math(t: TestFramework) -> void:
 	t.assert_true(f2.size.x < f1.size.x and f2.size.y < f1.size.y, "frame 2 is smaller than frame 1")
 	t.assert_true(absf((f0.position.x + f0.size.x * 0.5) - (f1.position.x + f1.size.x * 0.5)) < 0.5,
 		"frames share a horizontal center (vanishing point)")
+
+func _test_maze(t: TestFramework) -> void:
+	t.suite("MazeGenerator")
+	RNG.set_seed(42)
+	var maze: Dictionary = MazeGenerator.generate(9, 6)
+	var tiles: Array = maze.tiles
+	t.assert_eq(int(maze.width), 19, "width = 2*cells+1")
+	t.assert_eq(int(maze.height), 13, "height = 2*cells+1")
+	t.assert_eq(tiles.size(), 13, "tiles rows match height")
+	t.assert_eq(int(tiles[0].size()), 19, "tiles cols match width")
+	# Outer border is all walls.
+	for x in 19:
+		t.assert_eq(int(tiles[0][x]), MazeGenerator.WALL, "top border wall at %d" % x)
+		t.assert_eq(int(tiles[12][x]), MazeGenerator.WALL, "bottom border wall at %d" % x)
+	t.assert_eq(int(tiles[1][1]), MazeGenerator.FLOOR, "entrance (1,1) is floor")
+	# All cell centers reachable from entrance via BFS.
+	var dist: Dictionary = MazeGenerator.bfs_distances(tiles, Vector2i(1, 1))
+	var unreachable: int = 0
+	for cy in 6:
+		for cx in 9:
+			var p := Vector2i(cx * 2 + 1, cy * 2 + 1)
+			if not dist.has(p):
+				unreachable += 1
+	t.assert_eq(unreachable, 0, "every cell centre reachable from entrance")
+	# Dead-ends exist (recursive backtracker always produces >= 1).
+	t.assert_true((maze.dead_ends as Array).size() >= 2, "maze has multiple dead-ends")

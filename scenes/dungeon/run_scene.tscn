@@ -34,4 +34,4 @@ text = "HP: ?"
 
 [node name="Message" type="Label" parent="HUD"]
 layout_mode = 2
-text = "W/S forward-back · A/D strafe · Q/E turn · walk onto the glowing marker. Minimap top-right."
+text = "W/S forward-back · A/D strafe · Q/E turn · orange=puzzle · purple=shop · red=boss"

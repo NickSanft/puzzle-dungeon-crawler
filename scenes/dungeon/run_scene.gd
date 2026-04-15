@@ -19,31 +19,37 @@ var _current_board: Node
 var _current_room_type: String = "PUZZLE"
 var _current_shop: GlimboShop
 var _current_boss_name: String = ""
+var _puzzles_solved_on_floor: int = 0
 
 func _ready() -> void:
 	_dungeon = DungeonScene.instantiate()
 	_dungeon_layer.add_child(_dungeon)
 	_dungeon.trigger_entered.connect(_on_trigger_entered)
-	RunManager.room_entered.connect(_on_room_entered)
+	RunManager.floor_started.connect(_on_floor_started)
 	RunManager.floor_completed.connect(_on_floor_completed)
+	RunManager.puzzle_remaining_changed.connect(_on_puzzle_remaining_changed)
 	GameState.run_ended.connect(_on_run_ended)
 	GameState.hp_changed.connect(func(_c, _m): _update_hud())
 	GameState.glimbos_earned.connect(func(_a, _b): _update_hud())
 	RunManager.begin_floor()
 	_update_hud()
 
-func _on_room_entered(room_type: String, idx: int) -> void:
-	_message.text = "Floor %d/%d — Room %d/%d (%s)" % [
-		GameState.current_floor, RunManager.FLOORS_PER_RUN,
-		idx + 1, RunManager.ROOMS_PER_FLOOR, room_type
-	]
-	_dungeon.load_room(room_type)
+func _on_floor_started(floor_num: int, tiles: Array, triggers: Array, entrance: Vector2i) -> void:
+	_puzzles_solved_on_floor = 0
+	_dungeon.load_maze(tiles, triggers, entrance)
 	_dungeon.set_active(true)
 	_clear_overlay()
+	_message.text = "Floor %d / %d — %d puzzles, a shop, and a boss." % [
+		floor_num, RunManager.FLOORS_PER_RUN, RunManager.puzzles_remaining(),
+	]
+	_update_hud()
 
-func _on_trigger_entered(room_type: String) -> void:
-	_current_room_type = room_type
-	match room_type:
+func _on_puzzle_remaining_changed(_remaining: int) -> void:
+	_update_hud()
+
+func _on_trigger_entered(trigger_type: String) -> void:
+	_current_room_type = trigger_type
+	match trigger_type:
 		"PUZZLE":
 			_open_puzzle(RunManager.puzzle_size_for(GameState.current_floor))
 		"SHOP":
@@ -52,8 +58,6 @@ func _on_trigger_entered(room_type: String) -> void:
 			_open_boss()
 
 func _on_floor_completed(floor_num: int) -> void:
-	if floor_num >= RunManager.FLOORS_PER_RUN:
-		return
 	_clear_overlay()
 	_dungeon.set_active(false)
 	var banner := Label.new()
@@ -69,14 +73,15 @@ func _on_floor_completed(floor_num: int) -> void:
 	_overlay.add_child(banner)
 	await get_tree().create_timer(1.8).timeout
 	banner.queue_free()
-	RunManager.start_next_floor()
+	if GameState.current_floor > floor_num:
+		RunManager.begin_floor()
 
 func _open_puzzle(puzzle_size: int) -> void:
 	_clear_overlay()
 	if _should_use_sudoku():
 		_open_sudoku()
 		return
-	var use_color: bool = SaveSystem.has_unlock("color_nonograms") and GameState.room_index >= 3
+	var use_color: bool = SaveSystem.has_unlock("color_nonograms") and _puzzles_solved_on_floor >= 2
 	var density: float = RunManager.density_for(GameState.current_floor)
 	var puzzle: NonogramPuzzle
 	if use_color:
@@ -92,9 +97,7 @@ func _open_puzzle(puzzle_size: int) -> void:
 	_current_board = board
 
 func _should_use_sudoku() -> bool:
-	# Deterministic alternation so both puzzle types always appear in a run.
-	# Offset by floor so floors don't all start with the same type.
-	return (GameState.room_index + GameState.current_floor) % 2 == 1
+	return (_puzzles_solved_on_floor + GameState.current_floor) % 2 == 1
 
 func _open_sudoku() -> void:
 	var blanks: int = 40 + GameState.current_floor * 3
@@ -109,19 +112,19 @@ func _open_sudoku() -> void:
 
 func _on_sudoku_solved(_wrong: int) -> void:
 	GameState.award_glimbos(SUDOKU_REWARD)
+	_puzzles_solved_on_floor += 1
 	await get_tree().create_timer(0.6).timeout
-	RunManager.advance_room()
+	_resume_exploration("PUZZLE")
 
 func _starting_hints() -> int:
 	return 1 if SaveSystem.has_unlock("puzzle_hint") else 0
 
 func _on_puzzle_solved(_wrong: int, puzzle_size: int) -> void:
 	var reward: int = GLIMBO_REWARD_PER_SIZE.get(puzzle_size, 3)
-	if _current_room_type == "BOSS" and SaveSystem.has_unlock("extra_reward"):
-		reward *= 2
 	GameState.award_glimbos(reward)
+	_puzzles_solved_on_floor += 1
 	await get_tree().create_timer(0.6).timeout
-	RunManager.advance_room()
+	_resume_exploration("PUZZLE")
 
 func _open_boss() -> void:
 	_clear_overlay()
@@ -145,11 +148,11 @@ func _on_boss_solved(_wrong: int) -> void:
 	Audio.play_boss_win()
 	var banner := Label.new()
 	banner.text = "%s DEFEATED!" % _current_boss_name.to_upper()
-	banner.add_theme_font_size_override("font_size", 42)
+	banner.add_theme_font_size_override("font_size", 36)
 	banner.position = Vector2(40, 460)
 	_overlay.add_child(banner)
-	await get_tree().create_timer(1.8).timeout
-	RunManager.advance_room()
+	await get_tree().create_timer(1.6).timeout
+	_resume_exploration("BOSS")
 
 func _open_shop() -> void:
 	_clear_overlay()
@@ -159,7 +162,15 @@ func _open_shop() -> void:
 
 func _on_shop_closed() -> void:
 	_clear_overlay()
-	RunManager.advance_room()
+	_resume_exploration("SHOP")
+
+func _resume_exploration(kind: String) -> void:
+	_clear_overlay()
+	RunManager.on_trigger_resolved(kind)
+	# For BOSS, RunManager queues the floor transition; keep input paused until
+	# floor_completed handler runs. Otherwise, hand control back to the player.
+	if kind != "BOSS":
+		_dungeon.set_active(true)
 
 func _on_puzzle_failed(wrong: int) -> void:
 	GameState.take_damage(wrong)
@@ -189,8 +200,10 @@ func _clear_overlay() -> void:
 
 func _update_hud() -> void:
 	var daily_tag := "  [DAILY]" if GameState.is_daily_run else ""
-	_hud.text = "HP %d/%d     Glimbos: %d this run (%d total)%s" % [
+	_hud.text = "HP %d/%d     Floor %d/%d     Puzzles left: %d     Glimbos: %d run / %d total%s" % [
 		GameState.hp, GameState.max_hp,
+		GameState.current_floor, RunManager.FLOORS_PER_RUN,
+		RunManager.puzzles_remaining(),
 		GameState.glimbos_this_run, int(SaveSystem.data.glimbos),
 		daily_tag,
 	]
