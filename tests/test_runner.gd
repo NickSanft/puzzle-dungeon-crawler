@@ -10,6 +10,7 @@ func _ready() -> void:
 	_test_save_system(t)
 	_test_unlock_tree(t)
 	_test_boss_patterns(t)
+	_test_facing_math(t)
 	_test_sudoku(t)
 	_test_run_manager(t)
 	var ok := t.report()
@@ -172,3 +173,22 @@ func _test_run_manager(t: TestFramework) -> void:
 	t.assert_eq(RunManager.puzzle_size_for(3), 10, "floor 3 size = 10")
 	t.assert_eq(RunManager.puzzle_size_for(99), 10, "floors beyond last clamp to last size")
 	t.assert_true(RunManager.density_for(1) <= RunManager.density_for(3), "density non-decreasing with floor")
+
+func _test_facing_math(t: TestFramework) -> void:
+	t.suite("Dungeon facing math")
+	t.assert_eq(Dungeon.FACING_VECTORS[0], Vector2i(0, -1), "0 is North")
+	t.assert_eq(Dungeon.FACING_VECTORS[1], Vector2i(1, 0), "1 is East")
+	t.assert_eq(Dungeon.FACING_VECTORS[2], Vector2i(0, 1), "2 is South")
+	t.assert_eq(Dungeon.FACING_VECTORS[3], Vector2i(-1, 0), "3 is West")
+	t.assert_eq(Dungeon._perpendicular(0), Vector2i(1, 0), "perpendicular of N is E")
+	t.assert_eq(Dungeon._perpendicular(1), Vector2i(0, 1), "perpendicular of E is S")
+	t.assert_eq(Dungeon._perpendicular(2), Vector2i(-1, 0), "perpendicular of S is W")
+	t.assert_eq(Dungeon._perpendicular(3), Vector2i(0, -1), "perpendicular of W is N")
+	# Depth frames: each depth should be a smaller concentric rect than the previous.
+	var f0: Rect2 = Dungeon._frame_at(0)
+	var f1: Rect2 = Dungeon._frame_at(1)
+	var f2: Rect2 = Dungeon._frame_at(2)
+	t.assert_true(f1.size.x < f0.size.x and f1.size.y < f0.size.y, "frame 1 is smaller than frame 0")
+	t.assert_true(f2.size.x < f1.size.x and f2.size.y < f1.size.y, "frame 2 is smaller than frame 1")
+	t.assert_true(absf((f0.position.x + f0.size.x * 0.5) - (f1.position.x + f1.size.x * 0.5)) < 0.5,
+		"frames share a horizontal center (vanishing point)")
