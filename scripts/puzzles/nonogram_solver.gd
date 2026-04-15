@@ -34,7 +34,7 @@ static func _backtrack(grid: Array, row_clues: Array, col_clues: Array,
 		for x in w:
 			var col: Array = []
 			for y in h:
-				col.append(grid[y][x] == FILLED)
+				col.append(bool(grid[y][x]))
 			if NonogramPuzzle._line_to_clues(col) != col_clues[x]:
 				return
 		count[0] += 1
@@ -53,8 +53,8 @@ static func _col_partial_ok(grid: Array, new_row: Array, row_idx: int, col_clues
 	for x in w:
 		var col: Array = []
 		for y in range(0, row_idx):
-			col.append(grid[y][x] == FILLED)
-		col.append(new_row[x] == FILLED)
+			col.append(bool(grid[y][x]))
+		col.append(bool(new_row[x]))
 		var is_last_row := (row_idx == h - 1)
 		if not _col_prefix_ok(col, col_clues[x], is_last_row, h):
 			return false

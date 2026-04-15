@@ -32,9 +32,11 @@ func _on_hp_changed(_c: int, _m: int) -> void:
 
 func _on_start_run() -> void:
 	GameState.start_run(false)
+	get_tree().change_scene_to_file("res://scenes/dungeon/run_scene.tscn")
 
 func _on_start_daily() -> void:
 	GameState.start_run(true)
+	get_tree().change_scene_to_file("res://scenes/dungeon/run_scene.tscn")
 
 func _on_run_ended(won: bool) -> void:
 	_label.text = "Run ended. Won: %s" % str(won)
