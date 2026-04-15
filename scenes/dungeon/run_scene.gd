@@ -106,6 +106,22 @@ func _on_puzzle_failed(wrong: int) -> void:
 func _on_run_ended(won: bool) -> void:
 	_message.text = "Run ended — won: %s" % str(won)
 	_dungeon.set_active(false)
+	var elapsed: float = (Time.get_ticks_msec() - GameState.run_started_ticks) / 1000.0
+	var summary := {
+		"floor": GameState.current_floor,
+		"puzzles_run": GameState.puzzles_this_run,
+		"glimbos_run": GameState.glimbos_this_run,
+		"hp": GameState.hp,
+		"max_hp": GameState.max_hp,
+		"time_sec": elapsed,
+		"daily_key": GameState.daily_date_key,
+	}
+	var was_daily := GameState.is_daily_run
+	await get_tree().create_timer(0.8).timeout
+	var end_scene := load("res://scenes/ui/end_screen.tscn").instantiate()
+	end_scene.configure(won, summary, was_daily)
+	get_tree().root.add_child(end_scene)
+	queue_free()
 
 func _clear_overlay() -> void:
 	for c in _overlay.get_children():

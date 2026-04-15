@@ -4,6 +4,7 @@ signal room_entered(room_type: String, index: int)
 signal floor_completed(floor_num: int)
 
 const ROOMS_PER_FLOOR := 8
+const FLOORS_PER_RUN := 1
 
 enum RoomType { PUZZLE, SHOP, BOSS }
 
@@ -26,6 +27,9 @@ func advance_room() -> void:
 	GameState.room_index += 1
 	if GameState.room_index >= _floor_plan.size():
 		floor_completed.emit(GameState.current_floor)
+		if GameState.current_floor >= FLOORS_PER_RUN:
+			GameState.end_run(true)
+			return
 		GameState.current_floor += 1
 		begin_floor()
 		return

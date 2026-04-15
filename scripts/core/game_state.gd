@@ -11,6 +11,7 @@ const DAMAGE_CAP := 4
 var max_hp: int = STARTING_HP
 var hp: int = STARTING_HP
 var glimbos_this_run: int = 0
+var puzzles_this_run: int = 0
 var current_floor: int = 0
 var room_index: int = 0
 var is_daily_run: bool = false
@@ -22,6 +23,7 @@ func start_run(daily: bool = false) -> void:
 	max_hp = STARTING_HP + _bonus_max_hp()
 	hp = max_hp
 	glimbos_this_run = 0
+	puzzles_this_run = 0
 	current_floor = 1
 	room_index = 0
 	run_started_ticks = Time.get_ticks_msec()
@@ -47,6 +49,7 @@ func award_glimbos(amount: int) -> void:
 	if SaveSystem.has_unlock("glimbo_bonus"):
 		total += 1
 	glimbos_this_run += total
+	puzzles_this_run += 1
 	SaveSystem.add_glimbos(total)
 	SaveSystem.data.stats.puzzles_solved = int(SaveSystem.data.stats.puzzles_solved) + 1
 	SaveSystem.save_to_disk()
