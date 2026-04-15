@@ -35,3 +35,11 @@ text = "HP: ?"
 [node name="Message" type="Label" parent="HUD"]
 layout_mode = 2
 text = "W/S forward-back · A/D strafe · Q/E turn · orange=puzzle · purple=shop · red=boss"
+
+[node name="DebugRow" type="HBoxContainer" parent="HUD"]
+layout_mode = 2
+
+[node name="RevealMap" type="Button" parent="HUD/DebugRow"]
+layout_mode = 2
+text = "Reveal Map [DEBUG]"
+toggle_mode = true

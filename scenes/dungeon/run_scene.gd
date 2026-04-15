@@ -11,6 +11,7 @@ const BOSS_SIZE := 10
 
 @onready var _hud: Label = $HUD/HPGlimbos
 @onready var _message: Label = $HUD/Message
+@onready var _reveal_btn: Button = $HUD/DebugRow/RevealMap
 @onready var _dungeon_layer: Node2D = $DungeonLayer
 @onready var _overlay: Control = $Overlay
 
@@ -31,8 +32,13 @@ func _ready() -> void:
 	GameState.run_ended.connect(_on_run_ended)
 	GameState.hp_changed.connect(func(_c, _m): _update_hud())
 	GameState.glimbos_earned.connect(func(_a, _b): _update_hud())
+	_reveal_btn.toggled.connect(_on_reveal_toggled)
 	RunManager.begin_floor()
 	_update_hud()
+
+func _on_reveal_toggled(on: bool) -> void:
+	_dungeon.set_debug_reveal_all(on)
+	_reveal_btn.text = "Hide Map [DEBUG]" if on else "Reveal Map [DEBUG]"
 
 func _on_floor_started(floor_num: int, tiles: Array, triggers: Array, entrance: Vector2i) -> void:
 	_puzzles_solved_on_floor = 0

@@ -15,6 +15,11 @@ const MINIMAP_MARGIN := 8
 const STEP_DURATION := 0.14
 const TURN_DURATION := 0.14
 
+# --- Fog of war ---
+const VISION_RADIUS := 3  # BFS steps through floors the player can see
+
+const COLOR_MINIMAP_UNSEEN := Color(0.02, 0.02, 0.03)
+
 # 0 = North, 1 = East, 2 = South, 3 = West
 const FACING_VECTORS: Array[Vector2i] = [
 	Vector2i(0, -1),
@@ -50,6 +55,9 @@ var _player_pos: Vector2i = Vector2i(1, 1)
 var _player_facing: int = 1
 var _active: bool = true
 
+var _revealed: Dictionary = {}  # Vector2i -> true
+var _debug_reveal_all: bool = false
+
 # Animation state.
 var _is_animating: bool = false
 var _anim_kind: String = ""  # "forward", "back", "turn", "strafe"
@@ -72,10 +80,40 @@ func load_maze(tiles: Array, triggers: Array, entrance: Vector2i) -> void:
 	_is_animating = false
 	_anim_kind = ""
 	_anim_progress = 0.0
+	_revealed.clear()
+	_update_visibility()
 	queue_redraw()
 
 func set_active(flag: bool) -> void:
 	_active = flag
+
+func set_debug_reveal_all(flag: bool) -> void:
+	_debug_reveal_all = flag
+	queue_redraw()
+
+func _update_visibility() -> void:
+	# BFS from the player through floor tiles up to VISION_RADIUS steps.
+	# Then also reveal walls immediately adjacent to any newly-seen floor
+	# so the minimap shows corridor outlines, not just passable cells.
+	var dist: Dictionary = {_player_pos: 0}
+	var q: Array[Vector2i] = [_player_pos]
+	while not q.is_empty():
+		var cur: Vector2i = q.pop_front()
+		_revealed[cur] = true
+		var d: int = int(dist[cur])
+		if d >= VISION_RADIUS:
+			continue
+		for dv in FACING_VECTORS:
+			var n: Vector2i = cur + dv
+			if n.x < 0 or n.y < 0 or n.x >= _tw or n.y >= _th:
+				continue
+			if int(_tiles[n.y][n.x]) == Tile.WALL:
+				_revealed[n] = true
+				continue
+			if dist.has(n):
+				continue
+			dist[n] = d + 1
+			q.append(n)
 
 # --- Input ---
 
@@ -125,6 +163,7 @@ func _finish_move(target: Vector2i) -> void:
 	_is_animating = false
 	_anim_kind = ""
 	_anim_progress = 0.0
+	_update_visibility()
 	queue_redraw()
 	_check_trigger()
 
@@ -295,10 +334,16 @@ func _draw_minimap() -> void:
 			var rect := Rect2(
 				origin + Vector2(x * MINIMAP_TILE, y * MINIMAP_TILE),
 				Vector2(MINIMAP_TILE, MINIMAP_TILE))
+			var cell := Vector2i(x, y)
+			if not (_debug_reveal_all or _revealed.has(cell)):
+				draw_rect(rect, COLOR_MINIMAP_UNSEEN)
+				continue
 			var c: Color = COLOR_MINIMAP_WALL if int(_tiles[y][x]) == Tile.WALL else COLOR_MINIMAP_FLOOR
 			draw_rect(rect, c)
 	for trig in _triggers:
 		var tp: Vector2i = trig.pos
+		if not (_debug_reveal_all or _revealed.has(tp)):
+			continue
 		draw_rect(Rect2(
 			origin + Vector2(tp.x * MINIMAP_TILE, tp.y * MINIMAP_TILE),
 			Vector2(MINIMAP_TILE, MINIMAP_TILE)), _trigger_color(trig.type))
