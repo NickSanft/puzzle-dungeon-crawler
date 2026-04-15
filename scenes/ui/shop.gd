@@ -6,7 +6,6 @@ signal closed
 const OFFERS_PER_VISIT := 3
 const REROLL_BASE_COST := 10
 
-@onready var _title: Label = $Panel/VBox/Title
 @onready var _glimbos_label: Label = $Panel/VBox/Glimbos
 @onready var _offers_box: VBoxContainer = $Panel/VBox/Offers
 @onready var _reroll_btn: Button = $Panel/VBox/Actions/Reroll

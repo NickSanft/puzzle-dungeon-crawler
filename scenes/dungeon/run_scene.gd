@@ -17,7 +17,6 @@ const BOSS_SIZE := 10
 
 var _dungeon: Node2D
 var _current_board: Node
-var _current_size: int = 5
 var _current_room_type: String = "PUZZLE"
 var _current_shop: GlimboShop
 var _current_boss_name: String = ""
@@ -73,7 +72,7 @@ func _on_floor_completed(floor_num: int) -> void:
 	banner.queue_free()
 	RunManager.start_next_floor()
 
-func _open_puzzle(size: int) -> void:
+func _open_puzzle(puzzle_size: int) -> void:
 	_clear_overlay()
 	if _should_use_sudoku():
 		_open_sudoku()
@@ -82,21 +81,21 @@ func _open_puzzle(size: int) -> void:
 	var density: float = RunManager.density_for(GameState.current_floor)
 	var puzzle: NonogramPuzzle
 	if use_color:
-		puzzle = NonogramGenerator.generate_color(size, density)
+		puzzle = NonogramGenerator.generate_color(puzzle_size, density)
 	else:
-		puzzle = NonogramGenerator.generate(size, density, true)
+		puzzle = NonogramGenerator.generate(puzzle_size, density, true)
 	var board: NonogramBoard = NonogramBoardScene.instantiate()
 	board.position = Vector2(40, 40)
 	_overlay.add_child(board)
 	board.load_puzzle(puzzle, _starting_hints())
-	board.solved.connect(_on_puzzle_solved.bind(size))
+	board.solved.connect(_on_puzzle_solved.bind(puzzle_size))
 	board.failed.connect(_on_puzzle_failed)
 	_current_board = board
 
 func _should_use_sudoku() -> bool:
-	if GameState.current_floor < 2:
-		return false
-	return RNG.randf() < 0.5
+	# Deterministic alternation so both puzzle types always appear in a run.
+	# Offset by floor so floors don't all start with the same type.
+	return (GameState.room_index + GameState.current_floor) % 2 == 1
 
 func _open_sudoku() -> void:
 	var blanks: int = 40 + GameState.current_floor * 3
@@ -117,8 +116,8 @@ func _on_sudoku_solved(_wrong: int) -> void:
 func _starting_hints() -> int:
 	return 1 if SaveSystem.has_unlock("puzzle_hint") else 0
 
-func _on_puzzle_solved(_wrong: int, size: int) -> void:
-	var reward: int = GLIMBO_REWARD_PER_SIZE.get(size, 3)
+func _on_puzzle_solved(_wrong: int, puzzle_size: int) -> void:
+	var reward: int = GLIMBO_REWARD_PER_SIZE.get(puzzle_size, 3)
 	if _current_room_type == "BOSS" and SaveSystem.has_unlock("extra_reward"):
 		reward *= 2
 	GameState.award_glimbos(reward)

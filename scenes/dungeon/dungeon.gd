@@ -3,6 +3,7 @@ extends Node2D
 const TILE_SIZE := 32
 const ROOM_W := 15
 const ROOM_H := 11
+const ROOM_MID_Y := 5  # ROOM_H / 2
 
 const COLOR_FLOOR := Color(0.18, 0.18, 0.22)
 const COLOR_WALL := Color(0.08, 0.08, 0.1)
@@ -18,7 +19,7 @@ signal trigger_entered(room_type: String)
 
 var _tiles: Array = []
 var _player_pos: Vector2i = Vector2i(1, 1)
-var _trigger_pos: Vector2i = Vector2i(ROOM_W / 2, ROOM_H / 2)
+var _trigger_pos: Vector2i = Vector2i(7, ROOM_MID_Y)
 var _trigger_type: String = "PUZZLE"
 var _active: bool = true
 
@@ -36,8 +37,8 @@ func _build_room() -> void:
 			else:
 				row.append(Tile.FLOOR)
 		_tiles.append(row)
-	_player_pos = Vector2i(1, ROOM_H / 2)
-	_trigger_pos = Vector2i(ROOM_W - 3, ROOM_H / 2)
+	_player_pos = Vector2i(1, ROOM_MID_Y)
+	_trigger_pos = Vector2i(ROOM_W - 3, ROOM_MID_Y)
 
 func load_room(room_type: String) -> void:
 	_trigger_type = room_type

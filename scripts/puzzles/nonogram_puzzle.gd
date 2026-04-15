@@ -60,14 +60,14 @@ func to_debug_string() -> String:
 	s += "cols: " + str(col_clues) + "\n"
 	return s
 
-static func from_color_solution(grid: Array, palette: Array) -> NonogramPuzzle:
+static func from_color_solution(grid: Array, palette_in: Array) -> NonogramPuzzle:
 	var h := grid.size()
 	var w := 0
 	if h > 0:
 		w = grid[0].size()
 	var p := NonogramPuzzle.new(w, h)
 	p.is_color = true
-	p.palette = palette
+	p.palette = palette_in
 	p.solution = grid.duplicate(true)
 	p.row_clues = []
 	for y in h:

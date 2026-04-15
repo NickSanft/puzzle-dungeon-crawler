@@ -4,7 +4,6 @@ extends Control
 @onready var _daily_info: Label = $VBox/DailyInfo
 @onready var _start_btn: Button = $VBox/StartRun
 @onready var _daily_btn: Button = $VBox/StartDaily
-@onready var _vbox: VBoxContainer = $VBox
 
 func _ready() -> void:
 	_start_btn.pressed.connect(_on_start_run)
