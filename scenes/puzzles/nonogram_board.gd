@@ -160,6 +160,21 @@ func _build_ui() -> void:
 	_submit_btn.text = "Submit"
 	_submit_btn.pressed.connect(_on_submit)
 	bottom.add_child(_submit_btn)
+	var solve_btn := Button.new()
+	solve_btn.text = "Auto-Solve [DEBUG]"
+	solve_btn.pressed.connect(_auto_solve)
+	bottom.add_child(solve_btn)
+
+func _auto_solve() -> void:
+	for y in puzzle.height:
+		for x in puzzle.width:
+			var sol = puzzle.solution[y][x]
+			if typeof(sol) == TYPE_BOOL:
+				_state[y][x] = CELL_FILLED if sol else CELL_EMPTY
+			else:
+				_state[y][x] = int(sol)
+			_paint_cell(x, y)
+	_on_submit()
 
 func _clue_label(entry, center: bool) -> Label:
 	var lbl := Label.new()

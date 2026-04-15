@@ -59,7 +59,8 @@ func _build_ui() -> void:
 	_repaint_all()
 
 	var side := VBoxContainer.new()
-	side.custom_minimum_size = Vector2(150, 0)
+	side.custom_minimum_size = Vector2(200, 0)
+	side.add_theme_constant_override("separation", 6)
 	root.add_child(side)
 
 	var pad := GridContainer.new()
@@ -80,11 +81,24 @@ func _build_ui() -> void:
 
 	_status = Label.new()
 	_status.text = "Click a blank cell, then a number."
+	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status.custom_minimum_size = Vector2(200, 0)
 	side.add_child(_status)
 	_submit_btn = Button.new()
 	_submit_btn.text = "Submit"
 	_submit_btn.pressed.connect(_on_submit)
 	side.add_child(_submit_btn)
+	var solve_btn := Button.new()
+	solve_btn.text = "Auto-Solve"
+	solve_btn.pressed.connect(_auto_solve)
+	side.add_child(solve_btn)
+
+func _auto_solve() -> void:
+	for y in SudokuPuzzle.SIZE:
+		for x in SudokuPuzzle.SIZE:
+			_state[y][x] = int(puzzle.solution[y][x])
+			_paint_cell(x, y)
+	_on_submit()
 
 func _on_cell_pressed(x: int, y: int) -> void:
 	if bool(puzzle.givens[y][x]):

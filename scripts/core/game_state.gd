@@ -17,6 +17,8 @@ var room_index: int = 0
 var is_daily_run: bool = false
 var run_started_ticks: int = 0
 var daily_date_key: String = ""
+var last_summary: Dictionary = {}
+var last_won: bool = false
 
 func start_run(daily: bool = false) -> void:
 	is_daily_run = daily
@@ -59,8 +61,8 @@ func end_run(won: bool) -> void:
 	if won:
 		SaveSystem.data.stats.runs_won = int(SaveSystem.data.stats.runs_won) + 1
 		SaveSystem.save_to_disk()
+	var elapsed: float = (Time.get_ticks_msec() - run_started_ticks) / 1000.0
 	if is_daily_run and daily_date_key != "":
-		var elapsed: float = (Time.get_ticks_msec() - run_started_ticks) / 1000.0
 		SaveSystem.record_daily(daily_date_key, {
 			"hp_remaining": hp,
 			"time_sec": elapsed,
@@ -68,6 +70,17 @@ func end_run(won: bool) -> void:
 			"floor": current_floor,
 			"glimbos": glimbos_this_run,
 		})
+	last_won = won
+	last_summary = {
+		"floor": current_floor,
+		"puzzles_run": puzzles_this_run,
+		"glimbos_run": glimbos_this_run,
+		"hp": hp,
+		"max_hp": max_hp,
+		"time_sec": elapsed,
+		"daily_key": daily_date_key,
+		"was_daily": is_daily_run,
+	}
 	run_ended.emit(won)
 
 func _bonus_max_hp() -> int:

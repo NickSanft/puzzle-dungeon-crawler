@@ -4,7 +4,6 @@ const DungeonScene := preload("res://scenes/dungeon/dungeon.tscn")
 const NonogramBoardScene := preload("res://scenes/puzzles/nonogram_board.tscn")
 const SudokuBoardScene := preload("res://scenes/puzzles/sudoku_board.tscn")
 const ShopScene := preload("res://scenes/ui/shop.tscn")
-const EndScreenScene := preload("res://scenes/ui/end_screen.tscn")
 
 const GLIMBO_REWARD_PER_SIZE := {5: 3, 7: 5, 10: 8, 15: 15}
 const SUDOKU_REWARD := 10
@@ -177,25 +176,10 @@ func _flash_damage() -> void:
 	tw.tween_property(flash, "color:a", 0.0, 0.35)
 	tw.tween_callback(flash.queue_free)
 
-func _on_run_ended(won: bool) -> void:
-	_message.text = "Run ended — won: %s" % str(won)
+func _on_run_ended(_won: bool) -> void:
 	_dungeon.set_active(false)
-	var elapsed: float = (Time.get_ticks_msec() - GameState.run_started_ticks) / 1000.0
-	var summary := {
-		"floor": GameState.current_floor,
-		"puzzles_run": GameState.puzzles_this_run,
-		"glimbos_run": GameState.glimbos_this_run,
-		"hp": GameState.hp,
-		"max_hp": GameState.max_hp,
-		"time_sec": elapsed,
-		"daily_key": GameState.daily_date_key,
-	}
-	var was_daily := GameState.is_daily_run
 	await get_tree().create_timer(0.8).timeout
-	var end_scene: Node = EndScreenScene.instantiate()
-	end_scene.configure(won, summary, was_daily)
-	get_tree().root.add_child(end_scene)
-	queue_free()
+	get_tree().change_scene_to_file("res://scenes/ui/end_screen.tscn")
 
 func _clear_overlay() -> void:
 	for c in _overlay.get_children():
