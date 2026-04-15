@@ -1,0 +1,89 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.6"
+  GODOT_STATUS: "stable"
+
+jobs:
+  export:
+    name: Export Web Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Godot
+        run: |
+          set -euo pipefail
+          FILE="Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64"
+          ZIP="${FILE}.zip"
+          URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STATUS}/${ZIP}"
+          curl -fsSL -o "$ZIP" "$URL"
+          unzip -q "$ZIP"
+          mv "$FILE" /usr/local/bin/godot
+          chmod +x /usr/local/bin/godot
+          godot --version
+
+      - name: Download Export Templates
+        run: |
+          set -euo pipefail
+          TPZ="Godot_v${GODOT_VERSION}-${GODOT_STATUS}_export_templates.tpz"
+          URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STATUS}/${TPZ}"
+          curl -fsSL -o templates.tpz "$URL"
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STATUS}"
+          mkdir -p "$TEMPLATE_DIR"
+          unzip -q templates.tpz
+          mv templates/* "$TEMPLATE_DIR/"
+
+      - name: Import project
+        run: |
+          mkdir -p exports/web
+          godot --headless --import || true
+
+      - name: Export Web build
+        run: |
+          godot --headless --export-release "Web" exports/web/index.html
+          ls -la exports/web
+
+      - name: Inject coi-serviceworker
+        run: |
+          curl -fsSL -o exports/web/coi-serviceworker.js \
+            https://raw.githubusercontent.com/gzuidhof/coi-serviceworker/master/coi-serviceworker.js
+          # Inject <script src="coi-serviceworker.js"></script> into <head>
+          sed -i 's|</head>|<script src="coi-serviceworker.js"></script></head>|' exports/web/index.html
+          touch exports/web/.nojekyll
+
+      - name: Rename index to support Pages root
+        run: |
+          ls exports/web
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: exports/web
+
+  deploy:
+    name: Deploy
+    needs: export
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
