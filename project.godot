@@ -11,8 +11,16 @@ config_version=5
 [application]
 
 config/name="PuzzleDungeonCrawler"
+run/main_scene="res://scenes/ui/main.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[autoload]
+
+RNG="*res://scripts/core/rng.gd"
+SaveSystem="*res://scripts/core/save_system.gd"
+GameState="*res://scripts/core/game_state.gd"
+RunManager="*res://scripts/core/run_manager.gd"
 
 [physics]
 
