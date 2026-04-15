@@ -150,6 +150,10 @@ func _on_cell_input(event: InputEvent, x: int, y: int) -> void:
 func _cycle(x: int, y: int, target: int) -> void:
 	_state[y][x] = CELL_EMPTY if _state[y][x] == target else target
 	_paint_cell(x, y)
+	if target == CELL_FILLED:
+		Audio.play_click()
+	else:
+		Audio.play_mark()
 
 func _paint_cell(x: int, y: int) -> void:
 	var b: Button = _cell_buttons[y][x] if y < _cell_buttons.size() else null
@@ -172,7 +176,18 @@ func _on_submit() -> void:
 	if wrong == 0:
 		_status.text = "Solved!"
 		_submit_btn.disabled = true
+		Audio.play_solve()
 		solved.emit(0)
 	else:
 		_status.text = "Wrong cells: %d" % wrong
+		Audio.play_damage()
+		_shake()
 		failed.emit(wrong)
+
+func _shake() -> void:
+	var base: Vector2 = position
+	var tw := create_tween()
+	for i in 6:
+		var offset := Vector2(randf_range(-6, 6), randf_range(-6, 6))
+		tw.tween_property(self, "position", base + offset, 0.04)
+	tw.tween_property(self, "position", base, 0.06)

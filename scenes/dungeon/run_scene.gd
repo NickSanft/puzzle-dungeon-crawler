@@ -85,6 +85,7 @@ func _on_boss_solved(_wrong: int) -> void:
 	if SaveSystem.has_unlock("extra_reward"):
 		reward *= 2
 	GameState.award_glimbos(reward)
+	Audio.play_boss_win()
 	var banner := Label.new()
 	banner.text = "%s DEFEATED!" % _current_boss_name.to_upper()
 	banner.add_theme_font_size_override("font_size", 42)
@@ -105,6 +106,18 @@ func _on_shop_closed() -> void:
 
 func _on_puzzle_failed(wrong: int) -> void:
 	GameState.take_damage(wrong)
+	_flash_damage()
+
+func _flash_damage() -> void:
+	var flash := ColorRect.new()
+	flash.color = Color(0.9, 0.1, 0.1, 0.35)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flash.anchor_right = 1.0
+	flash.anchor_bottom = 1.0
+	add_child(flash)
+	var tw := create_tween()
+	tw.tween_property(flash, "color:a", 0.0, 0.35)
+	tw.tween_callback(flash.queue_free)
 
 func _on_run_ended(won: bool) -> void:
 	_message.text = "Run ended — won: %s" % str(won)
