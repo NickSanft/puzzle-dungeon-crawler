@@ -76,8 +76,8 @@ func _chord(key: String, freqs: Array, dur: float, volume: float) -> AudioStream
 	return stream
 
 func _envelope(t: float, dur: float) -> float:
-	var attack := 0.008
-	var release := min(0.08, dur * 0.5)
+	var attack: float = 0.008
+	var release: float = min(0.08, dur * 0.5)
 	if t < attack:
 		return t / attack
 	if t > dur - release:

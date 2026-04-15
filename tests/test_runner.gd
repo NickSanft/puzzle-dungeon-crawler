@@ -10,6 +10,8 @@ func _ready() -> void:
 	_test_save_system(t)
 	_test_unlock_tree(t)
 	_test_boss_patterns(t)
+	_test_sudoku(t)
+	_test_run_manager(t)
 	var ok := t.report()
 	get_tree().quit(0 if ok else 1)
 
@@ -147,3 +149,26 @@ func _test_boss_patterns(t: TestFramework) -> void:
 			for v in row:
 				max_idx = max(max_idx, int(v))
 		t.assert_true(max_idx < cpat.palette.size(), "%s uses only indices within palette" % cpat.name)
+
+func _test_sudoku(t: TestFramework) -> void:
+	t.suite("Sudoku")
+	t.assert_true(SudokuPuzzle.is_valid_solution(SudokuGenerator.BASE_SOLUTION), "canonical base solution is valid")
+	RNG.set_seed(1234)
+	var p := SudokuGenerator.generate(45)
+	t.assert_true(SudokuPuzzle.is_valid_solution(p.solution), "generated solution is valid sudoku")
+	var blanks := 0
+	for y in SudokuPuzzle.SIZE:
+		for x in SudokuPuzzle.SIZE:
+			if not bool(p.givens[y][x]):
+				blanks += 1
+			if bool(p.givens[y][x]):
+				t.assert_eq(int(p.initial[y][x]), int(p.solution[y][x]), "given matches solution at %d,%d" % [x, y])
+	t.assert_eq(blanks, 45, "blank count matches request")
+
+func _test_run_manager(t: TestFramework) -> void:
+	t.suite("RunManager")
+	t.assert_eq(RunManager.puzzle_size_for(1), 5, "floor 1 size = 5")
+	t.assert_eq(RunManager.puzzle_size_for(2), 7, "floor 2 size = 7")
+	t.assert_eq(RunManager.puzzle_size_for(3), 10, "floor 3 size = 10")
+	t.assert_eq(RunManager.puzzle_size_for(99), 10, "floors beyond last clamp to last size")
+	t.assert_true(RunManager.density_for(1) <= RunManager.density_for(3), "density non-decreasing with floor")
