@@ -73,13 +73,18 @@ func _build_ui() -> void:
 	var row_clue_width: int = max_row_clues * 22 + 10
 	var col_clue_height: int = max_col_clues * 22 + 10
 
-	# Backing panel with soft drop shadow.
+	# Fullscreen centerer so the panel shrink-wraps to content and stays
+	# centered on any viewport size.
+	var center := CenterContainer.new()
+	center.anchor_right = 1.0
+	center.anchor_bottom = 1.0
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(center)
+
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel",
 		PuzzleStyle.panel_style(PuzzleStyle.NONO_PANEL, _accent))
-	panel.anchor_right = 1.0
-	panel.anchor_bottom = 1.0
-	add_child(panel)
+	center.add_child(panel)
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 10)
@@ -400,7 +405,8 @@ func _play_entrance() -> void:
 
 func _play_solve_ceremony() -> void:
 	# Wave of brightness across the board (reading order), then a gentle zoom bump.
-	var panel: Control = get_child(0) as Control
+	var center: Control = get_child(0) as Control
+	var panel: Control = center.get_child(0) as Control if center != null and center.get_child_count() > 0 else null
 	for y in puzzle.height:
 		for x in puzzle.width:
 			var b: Button = _cell_buttons[y][x]

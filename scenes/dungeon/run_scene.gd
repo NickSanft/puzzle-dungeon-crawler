@@ -14,6 +14,7 @@ const BOSS_SIZE := 10
 @onready var _reveal_btn: Button = $HUD/DebugRow/RevealMap
 @onready var _dungeon_layer: Node2D = $DungeonLayer
 @onready var _overlay: Control = $Overlay
+@onready var _backdrop: ColorRect = $Overlay/Backdrop
 
 var _dungeon: Node2D
 var _current_board: Node
@@ -85,6 +86,7 @@ func _on_floor_completed(floor_num: int) -> void:
 
 func _open_puzzle(puzzle_size: int) -> void:
 	_clear_overlay()
+	_set_backdrop(true)
 	if _should_use_sudoku():
 		_open_sudoku()
 		return
@@ -96,7 +98,6 @@ func _open_puzzle(puzzle_size: int) -> void:
 	else:
 		puzzle = NonogramGenerator.generate(puzzle_size, density, true)
 	var board: NonogramBoard = NonogramBoardScene.instantiate()
-	board.position = Vector2(40, 40)
 	_overlay.add_child(board)
 	board.set_accent(PuzzleStyle.accent_for_floor(GameState.current_floor))
 	board.load_puzzle(puzzle, _starting_hints())
@@ -108,10 +109,10 @@ func _should_use_sudoku() -> bool:
 	return (_puzzles_solved_on_floor + GameState.current_floor) % 2 == 1
 
 func _open_sudoku() -> void:
+	_set_backdrop(true)
 	var blanks: int = 40 + GameState.current_floor * 3
 	var puzzle: SudokuPuzzle = SudokuGenerator.generate(blanks)
 	var board: SudokuBoard = SudokuBoardScene.instantiate()
-	board.position = Vector2(40, 40)
 	_overlay.add_child(board)
 	board.load_puzzle(puzzle)
 	board.solved.connect(_on_sudoku_solved)
@@ -140,12 +141,12 @@ func _on_puzzle_solved(_wrong: int, puzzle_size: int) -> void:
 
 func _open_boss() -> void:
 	_clear_overlay()
+	_set_backdrop(true)
 	var use_color: bool = SaveSystem.has_unlock("color_nonograms")
 	var boss: Dictionary = NonogramGenerator.from_boss_pattern(use_color)
 	_current_boss_name = str(boss.name)
 	_message.text = "BOSS: %s" % boss.name
 	var board: NonogramBoard = NonogramBoardScene.instantiate()
-	board.position = Vector2(40, 40)
 	_overlay.add_child(board)
 	board.set_accent(PuzzleStyle.accent_for_floor(GameState.current_floor))
 	board.load_puzzle(boss.puzzle, _starting_hints())
@@ -171,6 +172,7 @@ func _on_boss_solved(_wrong: int) -> void:
 
 func _open_shop() -> void:
 	_clear_overlay()
+	_set_backdrop(true)
 	_current_shop = ShopScene.instantiate()
 	_overlay.add_child(_current_shop)
 	_current_shop.closed.connect(_on_shop_closed)
@@ -181,6 +183,7 @@ func _on_shop_closed() -> void:
 
 func _resume_exploration(kind: String) -> void:
 	_clear_overlay()
+	_set_backdrop(false)
 	RunManager.on_trigger_resolved(kind)
 	# For BOSS, RunManager queues the floor transition; keep input paused until
 	# floor_completed handler runs. Otherwise, hand control back to the player.
@@ -210,9 +213,17 @@ func _on_run_ended(_won: bool) -> void:
 
 func _clear_overlay() -> void:
 	for c in _overlay.get_children():
+		if c == _backdrop:
+			continue
 		c.queue_free()
 	_current_board = null
 	_current_shop = null
+
+func _set_backdrop(on: bool) -> void:
+	if _backdrop == null:
+		return
+	_backdrop.visible = on
+	_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
 
 func _update_hud() -> void:
 	var daily_tag := "  [DAILY]" if GameState.is_daily_run else ""

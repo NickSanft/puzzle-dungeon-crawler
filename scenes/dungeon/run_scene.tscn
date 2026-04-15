@@ -18,7 +18,14 @@ position = Vector2(40, 80)
 layout_mode = 1
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 520.0
+mouse_filter = 1
+
+[node name="Backdrop" type="ColorRect" parent="Overlay"]
+visible = false
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.55)
 
 [node name="HUD" type="VBoxContainer" parent="."]
 layout_mode = 1
