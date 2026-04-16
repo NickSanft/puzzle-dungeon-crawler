@@ -27,6 +27,10 @@ func density_for(floor_num: int) -> float:
 func puzzles_remaining() -> int:
 	return _puzzles_remaining
 
+func set_puzzles_remaining(n: int) -> void:
+	_puzzles_remaining = max(0, n)
+	puzzle_remaining_changed.emit(_puzzles_remaining)
+
 func begin_floor() -> void:
 	var maze: Dictionary = MazeGenerator.generate(MAZE_CELL_W, MAZE_CELL_H)
 	var tiles: Array = maze.tiles

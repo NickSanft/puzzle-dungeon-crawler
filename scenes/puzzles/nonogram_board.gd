@@ -8,8 +8,12 @@ const CELL_EMPTY := 0
 const CELL_FILLED := 1
 const CELL_MARKED := -1
 
-const CELL_SIZE := 36
+const NONO_CELL_NORMAL := 36
+const NONO_CELL_LARGE := 52
 const CELL_GAP := 2
+
+static func _cell_size() -> int:
+	return NONO_CELL_LARGE if bool(SaveSystem.setting("large_cells", false)) else NONO_CELL_NORMAL
 
 # Colorblind-mode symbol set — each colour index gets a distinct glyph so
 # the puzzle is still solvable without colour perception.
@@ -107,7 +111,7 @@ func _build_ui() -> void:
 	top_row.add_child(_col_clues_box)
 	for x in puzzle.width:
 		var v := VBoxContainer.new()
-		v.custom_minimum_size = Vector2(CELL_SIZE, col_clue_height)
+		v.custom_minimum_size = Vector2(_cell_size(), col_clue_height)
 		v.alignment = BoxContainer.ALIGNMENT_END
 		v.add_theme_constant_override("separation", 1)
 		for entry in puzzle.col_clues[x]:
@@ -124,7 +128,7 @@ func _build_ui() -> void:
 	mid_row.add_child(_row_clues_box)
 	for y in puzzle.height:
 		var h := HBoxContainer.new()
-		h.custom_minimum_size = Vector2(row_clue_width, CELL_SIZE)
+		h.custom_minimum_size = Vector2(row_clue_width, _cell_size())
 		h.alignment = BoxContainer.ALIGNMENT_END
 		h.add_theme_constant_override("separation", 4)
 		for entry in puzzle.row_clues[y]:
@@ -141,7 +145,7 @@ func _build_ui() -> void:
 		var row_btns: Array = []
 		for x in puzzle.width:
 			var b := Button.new()
-			b.custom_minimum_size = Vector2(CELL_SIZE, CELL_SIZE)
+			b.custom_minimum_size = Vector2(_cell_size(), _cell_size())
 			b.toggle_mode = false
 			b.focus_mode = Control.FOCUS_NONE
 			b.gui_input.connect(_on_cell_input.bind(x, y))
@@ -205,7 +209,7 @@ func _auto_solve() -> void:
 
 func _clue_label(entry, center: bool) -> Label:
 	var lbl := Label.new()
-	lbl.custom_minimum_size = Vector2(CELL_SIZE if center else 0, 22)
+	lbl.custom_minimum_size = Vector2(_cell_size() if center else 0, 22)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if center else HORIZONTAL_ALIGNMENT_RIGHT
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.add_theme_font_size_override("font_size", PuzzleStyle.FONT_CLUE)

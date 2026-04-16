@@ -6,6 +6,13 @@ const SudokuBoardScene := preload("res://scenes/puzzles/sudoku_board.tscn")
 const ShopScene := preload("res://scenes/ui/shop.tscn")
 const PuzzleChoiceScene := preload("res://scenes/ui/puzzle_choice.tscn")
 
+const FLOOR_NAMES := ["The Margin", "The Library", "The Ink Well"]
+const FLOOR_QUOTES := [
+	"Where apprentices scratch first clues into the vellum.",
+	"Taller shelves. Older bindings. Puzzles that watch you back.",
+	"At the heart of every book: the well that drinks you in.",
+]
+
 const GLIMBO_REWARD_PER_SIZE := {5: 3, 7: 5, 10: 8, 15: 15}
 const SUDOKU_REWARD := 10
 const BOSS_SIZE := 10
@@ -24,6 +31,7 @@ var _current_shop: GlimboShop
 var _current_boss_name: String = ""
 var _puzzles_solved_on_floor: int = 0
 var _pending_reward_mult: float = 1.0
+var _resuming: bool = false
 
 func _ready() -> void:
 	_dungeon = DungeonScene.instantiate()
@@ -36,9 +44,39 @@ func _ready() -> void:
 	GameState.hp_changed.connect(func(_c, _m): _update_hud())
 	GameState.glimbos_earned.connect(func(_a, _b): _update_hud())
 	_reveal_btn.toggled.connect(_on_reveal_toggled)
-	RunManager.begin_floor()
+	if _resuming and SaveSystem.has_saved_run():
+		_restore_from_save()
+	else:
+		RunManager.begin_floor()
 	_update_hud()
 	Audio.start_ambient(0.45)
+
+func begin_resume() -> void:
+	_resuming = true
+
+func _restore_from_save() -> void:
+	var snap: Dictionary = SaveSystem.saved_run()
+	GameState.character_id = str(snap.get("character_id", GameState.character_id))
+	GameState.current_floor = int(snap.get("floor", 1))
+	GameState.max_hp = int(snap.get("max_hp", GameState.max_hp))
+	GameState.hp = int(snap.get("hp", GameState.max_hp))
+	GameState.glimbos_this_run = int(snap.get("glimbos_run", 0))
+	GameState.puzzles_this_run = int(snap.get("puzzles_run", 0))
+	GameState.puzzles_solved_on_floor = int(snap.get("puzzles_on_floor", 0))
+	GameState.curse_on_floor = int(snap.get("curse", 0))
+	GameState.is_daily_run = bool(snap.get("is_daily", false))
+	GameState.daily_date_key = str(snap.get("daily_key", ""))
+	var elapsed: float = float(snap.get("elapsed_sec", 0.0))
+	GameState.run_started_ticks = Time.get_ticks_msec() - int(elapsed * 1000.0)
+	_puzzles_solved_on_floor = GameState.puzzles_solved_on_floor
+	_dungeon.restore(snap.get("dungeon", {}))
+	_dungeon.set_active(true)
+	_dungeon.set_character_reveal_all(
+		bool(Characters.effect(GameState.character_id, "reveal_maze", false)))
+	RunManager.set_puzzles_remaining(int(snap.get("puzzles_remaining_on_floor", 0)))
+	_clear_overlay()
+	_set_backdrop(false)
+	_message.text = "Continuing your run on floor %d." % GameState.current_floor
 
 func _on_reveal_toggled(on: bool) -> void:
 	_dungeon.set_debug_reveal_all(on)
@@ -50,6 +88,8 @@ func _on_floor_started(floor_num: int, tiles: Array, triggers: Array, entrance: 
 	_dungeon.load_maze(tiles, triggers, entrance)
 	_dungeon.set_character_reveal_all(
 		bool(Characters.effect(GameState.character_id, "reveal_maze", false)))
+	_show_act_intro(floor_num)
+	_autosave()
 	_dungeon.set_active(true)
 	_clear_overlay()
 	_message.text = "Floor %d / %d — %d puzzles, a shop, and a boss." % [
@@ -192,12 +232,38 @@ func _on_boss_solved(_wrong: int) -> void:
 	Audio.play_boss_win()
 	if _current_board != null and _current_board.has_method("show_reward_counter"):
 		_current_board.show_reward_counter(reward)
-	var banner := Label.new()
-	banner.text = "%s DEFEATED!" % _current_boss_name.to_upper()
-	banner.add_theme_font_size_override("font_size", 36)
-	banner.position = Vector2(40, 460)
-	_overlay.add_child(banner)
-	await get_tree().create_timer(1.6).timeout
+	var accent: Color = PuzzleStyle.accent_for_floor(GameState.current_floor)
+	var banner_panel := PanelContainer.new()
+	banner_panel.anchor_left = 0.5
+	banner_panel.anchor_top = 0.5
+	banner_panel.offset_left = -320
+	banner_panel.offset_top = 100
+	banner_panel.offset_right = 320
+	banner_panel.offset_bottom = 200
+	banner_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	banner_panel.add_theme_stylebox_override("panel",
+		PuzzleStyle.panel_style(PuzzleStyle.NONO_PANEL, accent))
+	var bv := VBoxContainer.new()
+	bv.add_theme_constant_override("separation", 4)
+	banner_panel.add_child(bv)
+	var eyebrow := Label.new()
+	eyebrow.text = "DEFEATED"
+	eyebrow.add_theme_font_size_override("font_size", 14)
+	eyebrow.add_theme_color_override("font_color", Color(1, 1, 1, 0.65))
+	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bv.add_child(eyebrow)
+	var name_lbl := Label.new()
+	name_lbl.text = _current_boss_name
+	name_lbl.add_theme_font_size_override("font_size", PuzzleStyle.FONT_DISPLAY)
+	name_lbl.add_theme_color_override("font_color", accent)
+	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bv.add_child(name_lbl)
+	_overlay.add_child(banner_panel)
+	if not bool(SaveSystem.setting("reduced_motion", false)):
+		banner_panel.modulate = Color(1, 1, 1, 0)
+		var tw := create_tween()
+		tw.tween_property(banner_panel, "modulate:a", 1.0, 0.35)
+	await get_tree().create_timer(2.2).timeout
 	_resume_exploration("BOSS")
 
 func _open_shop() -> void:
@@ -219,6 +285,7 @@ func _resume_exploration(kind: String) -> void:
 	# floor_completed handler runs. Otherwise, hand control back to the player.
 	if kind != "BOSS":
 		_dungeon.set_active(true)
+		_autosave()
 
 func _on_puzzle_failed(wrong: int) -> void:
 	# Cursed bosses hit harder: every wrong cell stings more.
@@ -244,8 +311,77 @@ func _flash_damage() -> void:
 func _on_run_ended(_won: bool) -> void:
 	_dungeon.set_active(false)
 	Audio.stop_ambient()
+	SaveSystem.clear_run()
 	await get_tree().create_timer(0.8).timeout
 	get_tree().change_scene_to_file("res://scenes/ui/end_screen.tscn")
+
+func _show_act_intro(floor_num: int) -> void:
+	if bool(SaveSystem.setting("reduced_motion", false)):
+		return
+	var idx: int = clamp(floor_num - 1, 0, FLOOR_NAMES.size() - 1)
+	var accent: Color = PuzzleStyle.accent_for_floor(floor_num)
+	var card := PanelContainer.new()
+	card.anchor_left = 0.5
+	card.anchor_top = 0.5
+	card.offset_left = -260
+	card.offset_top = -90
+	card.offset_right = 260
+	card.offset_bottom = 90
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var stl: StyleBoxFlat = PuzzleStyle.panel_style(PuzzleStyle.NONO_PANEL, accent)
+	card.add_theme_stylebox_override("panel", stl)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	card.add_child(v)
+	var eyebrow := Label.new()
+	eyebrow.text = "FLOOR %d" % floor_num
+	eyebrow.add_theme_font_size_override("font_size", 14)
+	eyebrow.add_theme_color_override("font_color", Color(1, 1, 1, 0.65))
+	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(eyebrow)
+	var title := Label.new()
+	title.text = FLOOR_NAMES[idx]
+	title.add_theme_font_size_override("font_size", PuzzleStyle.FONT_DISPLAY)
+	title.add_theme_color_override("font_color", accent)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(title)
+	var quote := Label.new()
+	quote.text = FLOOR_QUOTES[idx]
+	quote.add_theme_font_size_override("font_size", PuzzleStyle.FONT_BUTTON)
+	quote.add_theme_color_override("font_color", Color(1, 1, 1, 0.82))
+	quote.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	quote.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(quote)
+	_overlay.add_child(card)
+	card.modulate = Color(1, 1, 1, 0)
+	var tw := create_tween()
+	tw.tween_property(card, "modulate:a", 1.0, 0.35)
+	tw.tween_interval(1.4)
+	tw.tween_property(card, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(card.queue_free)
+
+func _autosave() -> void:
+	# Don't autosave dailies so the daily can't be save-scummed.
+	if GameState.is_daily_run:
+		return
+	var elapsed: float = (Time.get_ticks_msec() - GameState.run_started_ticks) / 1000.0
+	var snap: Dictionary = {
+		"active": true,
+		"character_id": GameState.character_id,
+		"floor": GameState.current_floor,
+		"hp": GameState.hp,
+		"max_hp": GameState.max_hp,
+		"glimbos_run": GameState.glimbos_this_run,
+		"puzzles_run": GameState.puzzles_this_run,
+		"puzzles_on_floor": GameState.puzzles_solved_on_floor,
+		"curse": GameState.curse_on_floor,
+		"is_daily": GameState.is_daily_run,
+		"daily_key": GameState.daily_date_key,
+		"elapsed_sec": elapsed,
+		"puzzles_remaining_on_floor": RunManager.puzzles_remaining(),
+		"dungeon": _dungeon.snapshot(),
+	}
+	SaveSystem.save_run(snap)
 
 func _clear_overlay() -> void:
 	for c in _overlay.get_children():

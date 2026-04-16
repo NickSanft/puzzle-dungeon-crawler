@@ -4,7 +4,11 @@ extends Control
 signal solved(wrong_cells: int)
 signal failed(wrong_cells: int)
 
-const CELL_SIZE := 40
+const SUDO_CELL_NORMAL := 40
+const SUDO_CELL_LARGE := 56
+
+static func _cell_size() -> int:
+	return SUDO_CELL_LARGE if bool(SaveSystem.setting("large_cells", false)) else SUDO_CELL_NORMAL
 
 var puzzle: SudokuPuzzle
 var _state: Array = []
@@ -57,7 +61,8 @@ func _build_ui() -> void:
 			var b := Button.new()
 			var pad_right: int = 3 if x % 3 == 2 and x != SudokuPuzzle.SIZE - 1 else 0
 			var pad_bottom: int = 3 if y % 3 == 2 and y != SudokuPuzzle.SIZE - 1 else 0
-			b.custom_minimum_size = Vector2(CELL_SIZE + pad_right, CELL_SIZE + pad_bottom)
+			var cs: int = _cell_size()
+			b.custom_minimum_size = Vector2(cs + pad_right, cs + pad_bottom)
 			b.focus_mode = Control.FOCUS_NONE
 			b.add_theme_font_size_override("font_size", PuzzleStyle.FONT_DIGIT)
 			b.pressed.connect(_on_cell_pressed.bind(x, y))

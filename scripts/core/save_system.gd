@@ -20,8 +20,10 @@ var data: Dictionary = {
 	"settings": {
 		"colorblind": false,
 		"reduced_motion": false,
+		"large_cells": false,
 	},
 	"cosmetic_palette": "",
+	"run_save": {},
 }
 
 func _ready() -> void:
@@ -94,6 +96,22 @@ func set_setting(key: String, value) -> void:
 func set_cosmetic_palette(id: String) -> void:
 	data.cosmetic_palette = id
 	save_to_disk()
+
+func save_run(snapshot: Dictionary) -> void:
+	data.run_save = snapshot
+	save_to_disk()
+
+func clear_run() -> void:
+	data.run_save = {}
+	save_to_disk()
+
+func has_saved_run() -> bool:
+	var rs = data.get("run_save", {})
+	return typeof(rs) == TYPE_DICTIONARY and bool(rs.get("active", false))
+
+func saved_run() -> Dictionary:
+	var rs = data.get("run_save", {})
+	return rs if typeof(rs) == TYPE_DICTIONARY else {}
 
 func record_daily(date_key: String, record: Dictionary) -> bool:
 	var existing: Dictionary = data.daily.get(date_key, {})

@@ -95,6 +95,44 @@ func set_character_reveal_all(flag: bool) -> void:
 	_character_reveal_all = flag
 	queue_redraw()
 
+# --- Persistence helpers -------------------------------------------------
+
+func snapshot() -> Dictionary:
+	var revealed_cells: Array = []
+	for key in _revealed.keys():
+		var v: Vector2i = key
+		revealed_cells.append([v.x, v.y])
+	var trig_out: Array = []
+	for t in _triggers:
+		var p: Vector2i = t.pos
+		trig_out.append({"pos": [p.x, p.y], "type": str(t.type)})
+	return {
+		"tiles": _tiles.duplicate(true),
+		"triggers": trig_out,
+		"player_pos": [_player_pos.x, _player_pos.y],
+		"player_facing": _player_facing,
+		"revealed": revealed_cells,
+	}
+
+func restore(snap: Dictionary) -> void:
+	var tiles: Array = snap.get("tiles", [])
+	var raw_triggers: Array = snap.get("triggers", [])
+	var pos_arr: Array = snap.get("player_pos", [1, 1])
+	var facing: int = int(snap.get("player_facing", 1))
+	var restored_triggers: Array = []
+	for t in raw_triggers:
+		var p: Array = t.get("pos", [0, 0])
+		restored_triggers.append({
+			"pos": Vector2i(int(p[0]), int(p[1])),
+			"type": str(t.get("type", "PUZZLE")),
+		})
+	load_maze(tiles, restored_triggers, Vector2i(int(pos_arr[0]), int(pos_arr[1])))
+	_player_facing = facing
+	_revealed.clear()
+	for rc in snap.get("revealed", []):
+		_revealed[Vector2i(int(rc[0]), int(rc[1]))] = true
+	queue_redraw()
+
 func _update_visibility() -> void:
 	# BFS from the player through floor tiles up to VISION_RADIUS steps.
 	# Then also reveal walls immediately adjacent to any newly-seen floor

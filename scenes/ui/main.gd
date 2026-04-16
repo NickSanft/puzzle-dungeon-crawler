@@ -5,6 +5,7 @@ const SettingsMenuScene := preload("res://scenes/ui/settings_menu.tscn")
 
 @onready var _label: Label = $VBox/Status
 @onready var _daily_info: Label = $VBox/DailyInfo
+@onready var _continue_btn: Button = $VBox/Continue
 @onready var _start_btn: Button = $VBox/StartRun
 @onready var _daily_btn: Button = $VBox/StartDaily
 @onready var _settings_btn: Button = $VBox/Settings
@@ -12,9 +13,11 @@ const SettingsMenuScene := preload("res://scenes/ui/settings_menu.tscn")
 var _pending_daily: bool = false
 
 func _ready() -> void:
+	_continue_btn.pressed.connect(_on_continue)
 	_start_btn.pressed.connect(_on_start_run)
 	_daily_btn.pressed.connect(_on_start_daily)
 	_settings_btn.pressed.connect(_on_open_settings)
+	_continue_btn.visible = SaveSystem.has_saved_run()
 	GameState.run_started.connect(_refresh)
 	GameState.run_ended.connect(_on_run_ended)
 	GameState.hp_changed.connect(_on_hp_changed)
@@ -61,6 +64,21 @@ func _on_character_chosen(character_id: String) -> void:
 
 func _on_run_ended(won: bool) -> void:
 	_label.text = "Run ended. Won: %s" % str(won)
+
+func _on_continue() -> void:
+	if not SaveSystem.has_saved_run():
+		return
+	var snap: Dictionary = SaveSystem.saved_run()
+	GameState.character_id = str(snap.get("character_id", GameState.character_id))
+	var packed := load("res://scenes/dungeon/run_scene.tscn") as PackedScene
+	var instance: Node = packed.instantiate()
+	if instance.has_method("begin_resume"):
+		instance.begin_resume()
+	get_tree().root.add_child(instance)
+	var old_scene: Node = get_tree().current_scene
+	get_tree().current_scene = instance
+	if old_scene != null:
+		old_scene.queue_free()
 
 func _on_open_settings() -> void:
 	var menu: Control = SettingsMenuScene.instantiate()

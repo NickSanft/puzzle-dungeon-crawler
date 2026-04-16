@@ -33,6 +33,7 @@ func _ready() -> void:
 
 	_add_toggle(v, "Colorblind mode (patterns on color cells)", "colorblind")
 	_add_toggle(v, "Reduced motion (disable entrances, shakes, fades)", "reduced_motion")
+	_add_toggle(v, "Large cells (touch-friendly puzzle boards)", "large_cells")
 
 	v.add_child(_make_palette_picker())
 
