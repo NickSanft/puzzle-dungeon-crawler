@@ -19,6 +19,20 @@ func _ready() -> void:
 	_ambient = AudioStreamPlayer.new()
 	_ambient.volume_db = -16.0
 	add_child(_ambient)
+	_restore_volumes()
+
+func _restore_volumes() -> void:
+	var master: float = float(SaveSystem.setting("vol_master", 1.0))
+	var sfx: float = float(SaveSystem.setting("vol_sfx", 1.0))
+	var ambient: float = float(SaveSystem.setting("vol_ambient", 0.5))
+	AudioServer.set_bus_volume_db(0, _vol_to_db(master))
+	_player.volume_db = _vol_to_db(sfx)
+	_ambient.volume_db = _vol_to_db(ambient)
+
+static func _vol_to_db(val: float) -> float:
+	if val <= 0.001:
+		return -80.0
+	return 20.0 * log(val) / log(10.0)
 
 # --- Click / mark: pitch varies by provided "index" so successive clicks form
 # a short motif instead of monotone blips. Callers can just pass 0 if they

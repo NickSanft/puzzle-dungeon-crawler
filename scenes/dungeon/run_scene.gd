@@ -5,6 +5,7 @@ const NonogramBoardScene := preload("res://scenes/puzzles/nonogram_board.tscn")
 const SudokuBoardScene := preload("res://scenes/puzzles/sudoku_board.tscn")
 const ShopScene := preload("res://scenes/ui/shop.tscn")
 const PuzzleChoiceScene := preload("res://scenes/ui/puzzle_choice.tscn")
+const PauseMenuScene := preload("res://scenes/ui/pause_menu.tscn")
 
 const FLOOR_NAMES := ["The Margin", "The Library", "The Ink Well"]
 const FLOOR_QUOTES := [
@@ -32,6 +33,8 @@ var _current_boss_name: String = ""
 var _puzzles_solved_on_floor: int = 0
 var _pending_reward_mult: float = 1.0
 var _resuming: bool = false
+var _paused: bool = false
+var _pause_menu: Control
 
 func _ready() -> void:
 	_dungeon = DungeonScene.instantiate()
@@ -81,6 +84,43 @@ func _restore_from_save() -> void:
 func _on_reveal_toggled(on: bool) -> void:
 	_dungeon.set_debug_reveal_all(on)
 	_reveal_btn.text = "Hide Map [DEBUG]" if on else "Reveal Map [DEBUG]"
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		if _paused:
+			_close_pause()
+		else:
+			_open_pause()
+		get_viewport().set_input_as_handled()
+
+func _open_pause() -> void:
+	if _paused:
+		return
+	_paused = true
+	_dungeon.set_active(false)
+	_pause_menu = PauseMenuScene.instantiate()
+	_pause_menu.resumed.connect(_close_pause)
+	_pause_menu.abandoned.connect(_abandon_run)
+	add_child(_pause_menu)
+
+func _close_pause() -> void:
+	if not _paused:
+		return
+	_paused = false
+	if _pause_menu != null and is_instance_valid(_pause_menu):
+		_pause_menu.queue_free()
+		_pause_menu = null
+	# Only re-enable dungeon if no puzzle/shop overlay is active.
+	if _current_board == null and _current_shop == null:
+		_dungeon.set_active(true)
+
+func _abandon_run() -> void:
+	_paused = false
+	if _pause_menu != null and is_instance_valid(_pause_menu):
+		_pause_menu.queue_free()
+	SaveSystem.clear_run()
+	Audio.stop_ambient()
+	get_tree().change_scene_to_file("res://scenes/ui/main.tscn")
 
 func _on_floor_started(floor_num: int, tiles: Array, triggers: Array, entrance: Vector2i) -> void:
 	_puzzles_solved_on_floor = 0
