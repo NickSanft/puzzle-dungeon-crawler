@@ -200,6 +200,9 @@ func _spawn_nonogram(puzzle_size: int, density: float) -> void:
 	var board: NonogramBoard = NonogramBoardScene.instantiate()
 	_overlay.add_child(board)
 	board.set_accent(PuzzleStyle.accent_for_floor(GameState.current_floor))
+	var mod: Dictionary = RoomModifiers.roll()
+	if not mod.is_empty():
+		board.set_modifier(mod)
 	board.load_puzzle(puzzle, _starting_hints())
 	board.solved.connect(_on_puzzle_solved.bind(puzzle_size))
 	board.failed.connect(_on_puzzle_failed)
@@ -237,6 +240,10 @@ func _starting_hints() -> int:
 func _on_puzzle_solved(_wrong: int, puzzle_size: int) -> void:
 	var base_reward: int = GLIMBO_REWARD_PER_SIZE.get(puzzle_size, 3)
 	var reward: int = max(1, int(round(float(base_reward) * _pending_reward_mult)))
+	# Timed modifier bonus: +50% if solved before time ran out.
+	if _current_board != null and _current_board.has_method("is_timed_bonus"):
+		if _current_board.is_timed_bonus():
+			reward = int(round(float(reward) * 1.5))
 	GameState.award_glimbos(reward)
 	_puzzles_solved_on_floor += 1
 	if _current_board != null and _current_board.has_method("show_reward_counter"):

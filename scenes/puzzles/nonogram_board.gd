@@ -21,6 +21,7 @@ const COLORBLIND_GLYPHS := ["", "●", "▲", "■", "◆", "✚", "★"]
 
 var puzzle: NonogramPuzzle
 var _accent: Color = PuzzleStyle.NONO_ACCENT
+var _modifier: Dictionary = {}
 var _state: Array = []
 var _cell_buttons: Array = []
 var _grid: GridContainer
@@ -31,9 +32,16 @@ var _col_clue_cols: Array = []  # VBoxContainer per col
 var _status: Label
 var _submit_btn: Button
 var _selected_color: int = 1
+var _timer_label: Label
+var _timer_remaining: float = 0.0
+var _timer_active: bool = false
+var _fogged_clues: Dictionary = {}  # Label -> bool (true = hidden)
 
 func set_accent(c: Color) -> void:
 	_accent = c
+
+func set_modifier(mod: Dictionary) -> void:
+	_modifier = mod
 
 func load_puzzle(p: NonogramPuzzle, starting_hints: int = 0) -> void:
 	puzzle = p
@@ -43,9 +51,12 @@ func load_puzzle(p: NonogramPuzzle, starting_hints: int = 0) -> void:
 		row.resize(p.width)
 		row.fill(CELL_EMPTY)
 		_state.append(row)
+	if str(_modifier.get("id", "")) == "mirrored":
+		_mirror_puzzle()
 	_apply_hints(starting_hints)
 	_build_ui()
 	_refresh_clue_dim()
+	_apply_modifier_effects()
 	_play_entrance()
 
 func _apply_hints(n: int) -> void:
@@ -247,6 +258,7 @@ func _cycle(x: int, y: int, target: int) -> void:
 	_paint_cell(x, y)
 	_fade_in_cell(x, y)
 	_refresh_clue_dim_for(x, y)
+	_reveal_fog_for(x, y)
 	var pitch_idx: int = (x + y) % 8
 	if target == CELL_MARKED:
 		Audio.play_mark(pitch_idx)
@@ -466,6 +478,96 @@ func show_reward_counter(reward: int) -> void:
 	tw.parallel().tween_property(label, "position:y", label.position.y - 30, 0.9)
 	tw.parallel().tween_property(label, "modulate:a", 0.0, 0.9).set_delay(0.6)
 	tw.tween_callback(label.queue_free)
+
+# --- Room Modifiers -------------------------------------------------------
+
+func _mirror_puzzle() -> void:
+	# Flip every row in the solution horizontally. Clues are re-derived so
+	# they stay accurate — the player just has to think "backwards".
+	for y in puzzle.height:
+		puzzle.solution[y].reverse()
+	if puzzle.is_color:
+		puzzle.row_clues = []
+		for y in puzzle.height:
+			puzzle.row_clues.append(NonogramPuzzle._line_to_color_clues(puzzle.solution[y]))
+	else:
+		puzzle.row_clues = []
+		for y in puzzle.height:
+			puzzle.row_clues.append(NonogramPuzzle._line_to_clues(puzzle.solution[y]))
+
+func _apply_modifier_effects() -> void:
+	var mod_id: String = str(_modifier.get("id", ""))
+	if mod_id == "fogged":
+		_apply_fog()
+	elif mod_id == "timed":
+		_start_timer()
+	# Show modifier badge in the status bar.
+	if mod_id != "":
+		_status.text = "[%s] %s" % [str(_modifier.get("name", "")), str(_modifier.get("desc", ""))]
+
+func _apply_fog() -> void:
+	# Hide ~40% of clue labels randomly. They reveal when the player fills
+	# a cell in the same row or column.
+	_fogged_clues.clear()
+	for y in puzzle.height:
+		var row_container: Container = _row_clue_rows[y]
+		for child in row_container.get_children():
+			if RNG.randf() < 0.4:
+				child.modulate = Color(1, 1, 1, 0)
+				_fogged_clues[child] = true
+	for x in puzzle.width:
+		var col_container: Container = _col_clue_cols[x]
+		for child in col_container.get_children():
+			if RNG.randf() < 0.4:
+				child.modulate = Color(1, 1, 1, 0)
+				_fogged_clues[child] = true
+
+func _reveal_fog_for(x: int, y: int) -> void:
+	if _fogged_clues.is_empty():
+		return
+	# Reveal clues in the same row and column as the filled cell.
+	if y < _row_clue_rows.size():
+		var row_c: Container = _row_clue_rows[y]
+		for child in row_c.get_children():
+			if _fogged_clues.has(child):
+				child.modulate = Color(1, 1, 1, 1)
+				_fogged_clues.erase(child)
+	if x < _col_clue_cols.size():
+		var col_c: Container = _col_clue_cols[x]
+		for child in col_c.get_children():
+			if _fogged_clues.has(child):
+				child.modulate = Color(1, 1, 1, 1)
+				_fogged_clues.erase(child)
+
+func _start_timer() -> void:
+	_timer_remaining = 60.0
+	_timer_active = true
+	_timer_label = Label.new()
+	_timer_label.add_theme_font_size_override("font_size", 22)
+	_timer_label.add_theme_color_override("font_color", _accent)
+	_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Insert near the top of the first child tree (after the center wrapper).
+	add_child(_timer_label)
+	_timer_label.position = Vector2(10, 10)
+	_timer_label.z_index = 20
+	set_process(true)
+
+func _process(delta: float) -> void:
+	if not _timer_active:
+		set_process(false)
+		return
+	_timer_remaining -= delta
+	if _timer_remaining <= 0:
+		_timer_remaining = 0.0
+		_timer_active = false
+	if _timer_label != null:
+		var color: Color = _accent if _timer_remaining > 10.0 else Color(0.95, 0.35, 0.35)
+		_timer_label.add_theme_color_override("font_color", color)
+		_timer_label.text = "Time: %d:%02d" % [int(_timer_remaining) / 60, int(_timer_remaining) % 60]
+
+func is_timed_bonus() -> bool:
+	# Returns true if the puzzle was timed and the player beat it in time.
+	return str(_modifier.get("id", "")) == "timed" and _timer_remaining > 0.0
 
 func _shake() -> void:
 	if bool(SaveSystem.setting("reduced_motion", false)):
