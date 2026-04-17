@@ -29,11 +29,14 @@ const FACING_VECTORS: Array[Vector2i] = [
 ]
 
 # --- Palette ---
-const COLOR_CEILING := Color(0.09, 0.09, 0.12)
-const COLOR_FLOOR := Color(0.16, 0.14, 0.12)
-const COLOR_WALL_SIDE := Color(0.22, 0.2, 0.18)
-const COLOR_WALL_FRONT := Color(0.32, 0.28, 0.25)
-const COLOR_WALL_FAR := Color(0.12, 0.11, 0.1)
+const COLOR_CEILING_TOP := Color(0.04, 0.04, 0.06)
+const COLOR_CEILING_HORIZON := Color(0.12, 0.11, 0.14)
+const COLOR_FLOOR_HORIZON := Color(0.1, 0.09, 0.08)
+const COLOR_FLOOR_BOTTOM := Color(0.2, 0.17, 0.14)
+const COLOR_WALL_NEAR := Color(0.34, 0.28, 0.22)   # warm stone near the player
+const COLOR_WALL_FAR_TINT := Color(0.12, 0.13, 0.18) # cool shadow at max depth
+const COLOR_WALL_EDGE := Color(0.55, 0.48, 0.4, 0.35) # highlight along top edges
+const COLOR_FOG := Color(0.06, 0.06, 0.1)           # distance fade target
 const COLOR_TRIGGER_PUZZLE := Color(0.95, 0.65, 0.25)
 const COLOR_TRIGGER_SHOP := Color(0.65, 0.45, 0.95)
 const COLOR_TRIGGER_BOSS := Color(0.95, 0.3, 0.35)
@@ -67,7 +70,13 @@ var _anim_kind: String = ""  # "forward", "back", "turn", "strafe"
 var _anim_progress: float = 0.0
 
 func _ready() -> void:
+	set_process(true)
 	queue_redraw()
+
+func _process(_delta: float) -> void:
+	# Continuous redraw for the trigger glow pulse animation.
+	if not _triggers.is_empty():
+		queue_redraw()
 
 func load_maze(tiles: Array, triggers: Array, entrance: Vector2i) -> void:
 	_tiles = tiles
@@ -275,19 +284,31 @@ func _draw() -> void:
 		_draw_turn_fade()
 
 func _draw_first_person() -> void:
-	# Depth offset during forward/back animation so the perspective glides.
 	var depth_offset: float = 0.0
 	if _anim_kind == "forward":
 		depth_offset = -_anim_progress
 	elif _anim_kind == "back":
 		depth_offset = _anim_progress
-	# Strafe intentionally has no parallax: a "lean and return" sinusoid
-	# reads as a wall-bump shake, not sideways motion. The minimap chevron
-	# sliding to the new tile is feedback enough.
 	var parallax_x: float = 0.0
 
-	draw_rect(Rect2(parallax_x, 0, VIEW_W, VIEW_H * 0.5), COLOR_CEILING)
-	draw_rect(Rect2(parallax_x, VIEW_H * 0.5, VIEW_W, VIEW_H * 0.5), COLOR_FLOOR)
+	# --- Ceiling / floor gradients (6 strips each) -----------------------
+	var half_h: float = VIEW_H * 0.5
+	var grad_steps: int = 6
+	for i in grad_steps:
+		var t0: float = float(i) / float(grad_steps)
+		var t1: float = float(i + 1) / float(grad_steps)
+		# Ceiling: dark at top → lighter at horizon
+		var c_top: Color = COLOR_CEILING_TOP.lerp(COLOR_CEILING_HORIZON, t0)
+		var c_bot: Color = COLOR_CEILING_TOP.lerp(COLOR_CEILING_HORIZON, t1)
+		var cy: float = t0 * half_h
+		var ch: float = (t1 - t0) * half_h
+		draw_rect(Rect2(0, cy, VIEW_W, ch), c_top.lerp(c_bot, 0.5))
+		# Floor: dark at horizon → lighter at bottom
+		var f_top: Color = COLOR_FLOOR_HORIZON.lerp(COLOR_FLOOR_BOTTOM, t0)
+		var f_bot: Color = COLOR_FLOOR_HORIZON.lerp(COLOR_FLOOR_BOTTOM, t1)
+		var fy: float = half_h + t0 * half_h
+		var fh: float = (t1 - t0) * half_h
+		draw_rect(Rect2(0, fy, VIEW_W, fh), f_top.lerp(f_bot, 0.5))
 
 	var fwd_v: Vector2i = FACING_VECTORS[_player_facing]
 	var left_v: Vector2i = FACING_VECTORS[(_player_facing + 3) % 4]
@@ -300,41 +321,55 @@ func _draw_first_person() -> void:
 			blocker = d
 			break
 
-	# Trigger floor markers behind walls so nearer walls occlude them.
-	# Triggers can only be on open tiles: depths 1..blocker-1 (the tile at
-	# depth=blocker is the wall itself).
+	# Trigger floor markers (behind walls so nearer walls occlude them).
 	var last_open: int = min(blocker - 1, MAX_VIS_DEPTH)
 	for d in range(1, last_open + 1):
 		var tt: Vector2i = _player_pos + fwd_v * d
 		var trig: Dictionary = _trigger_at(tt)
 		if not trig.is_empty():
-			_draw_trigger_marker(float(d) + depth_offset, parallax_x, trig.type)
+			_draw_trigger_marker(float(d) + depth_offset, parallax_x, str(trig.type))
 
+	# Back wall at the blocker, fogged toward distance.
 	if blocker <= MAX_VIS_DEPTH:
+		var fog_t: float = float(blocker) / float(MAX_VIS_DEPTH)
+		var back_col: Color = _wall_color_at(fog_t).lerp(COLOR_FOG, fog_t * 0.6)
 		var back_frame: Rect2 = _frame_at(float(blocker) + depth_offset)
 		back_frame.position.x += parallax_x
-		draw_rect(back_frame, COLOR_WALL_FAR)
+		draw_rect(back_frame, back_col)
+		# Top-edge highlight on the back wall.
+		draw_line(
+			Vector2(back_frame.position.x, back_frame.position.y),
+			Vector2(back_frame.position.x + back_frame.size.x, back_frame.position.y),
+			COLOR_WALL_EDGE, 1.0)
 
-	# Side walls are drawn for each open tile in the forward corridor, from
-	# far to near so nearer sides occlude farther ones. Skip the blocker
-	# depth (that tile is a wall; its sides are undefined).
+	# Side walls: far to near with warm→cool gradient + distance fog + edge highlights.
 	for depth in range(last_open, -1, -1):
 		var tile_pos: Vector2i = _player_pos + fwd_v * depth
 		var near_frame: Rect2 = _frame_at(float(depth) + depth_offset)
 		var far_frame: Rect2 = _frame_at(float(depth + 1) + depth_offset)
 		near_frame.position.x += parallax_x
 		far_frame.position.x += parallax_x
+		var fog_near: float = float(depth) / float(MAX_VIS_DEPTH)
+		var fog_far: float = float(depth + 1) / float(MAX_VIS_DEPTH)
 
 		if _is_wall_or_oob(tile_pos + left_v):
+			var col: Color = _wall_color_at(fog_near).lerp(COLOR_FOG, fog_near * 0.5)
+			col = col.darkened(0.08)  # left walls slightly darker (shadow side)
 			var quad_l := PackedVector2Array([
 				Vector2(near_frame.position.x, near_frame.position.y),
 				Vector2(far_frame.position.x, far_frame.position.y),
 				Vector2(far_frame.position.x, far_frame.position.y + far_frame.size.y),
 				Vector2(near_frame.position.x, near_frame.position.y + near_frame.size.y),
 			])
-			draw_colored_polygon(quad_l, COLOR_WALL_SIDE.darkened(depth * 0.06))
+			draw_colored_polygon(quad_l, col)
+			# Top-edge highlight
+			draw_line(
+				Vector2(near_frame.position.x, near_frame.position.y),
+				Vector2(far_frame.position.x, far_frame.position.y),
+				COLOR_WALL_EDGE, 1.0)
 
 		if _is_wall_or_oob(tile_pos + right_v):
+			var col: Color = _wall_color_at(fog_near).lerp(COLOR_FOG, fog_near * 0.45)
 			var nx: float = near_frame.position.x + near_frame.size.x
 			var fx: float = far_frame.position.x + far_frame.size.x
 			var quad_r := PackedVector2Array([
@@ -343,7 +378,15 @@ func _draw_first_person() -> void:
 				Vector2(fx, far_frame.position.y + far_frame.size.y),
 				Vector2(nx, near_frame.position.y + near_frame.size.y),
 			])
-			draw_colored_polygon(quad_r, COLOR_WALL_FRONT.darkened(depth * 0.06))
+			draw_colored_polygon(quad_r, col)
+			draw_line(
+				Vector2(nx, near_frame.position.y),
+				Vector2(fx, far_frame.position.y),
+				COLOR_WALL_EDGE, 1.0)
+
+# Warm near-stone → cool far-shadow wall colour by distance fraction.
+func _wall_color_at(t: float) -> Color:
+	return COLOR_WALL_NEAR.lerp(COLOR_WALL_FAR_TINT, t)
 
 func _draw_trigger_marker(depth: float, parallax_x: float, trigger_type: String) -> void:
 	var near_frame: Rect2 = _frame_at(depth)
@@ -354,13 +397,21 @@ func _draw_trigger_marker(depth: float, parallax_x: float, trigger_type: String)
 	var half_h: float = max(2.0, (y_near - y_far) * 0.35)
 	var cx: float = VIEW_W * 0.5 + parallax_x
 	var half_w: float = max(3.0, far_frame.size.x * 0.25)
+	# Glow pulse — triggers shimmer so they're visible from afar.
+	var pulse: float = 1.0 + 0.18 * sin(Time.get_ticks_msec() * 0.004)
+	var base_col: Color = _trigger_color(trigger_type)
+	var col: Color = Color(
+		clamp(base_col.r * pulse, 0, 1),
+		clamp(base_col.g * pulse, 0, 1),
+		clamp(base_col.b * pulse, 0, 1),
+		base_col.a)
 	var quad := PackedVector2Array([
 		Vector2(cx - half_w, mid_y - half_h),
 		Vector2(cx + half_w, mid_y - half_h),
 		Vector2(cx + half_w, mid_y + half_h),
 		Vector2(cx - half_w, mid_y + half_h),
 	])
-	draw_colored_polygon(quad, _trigger_color(trigger_type))
+	draw_colored_polygon(quad, col)
 
 func _draw_turn_fade() -> void:
 	# Fade down then back up, peaking at midpoint. Hides the facing snap.
