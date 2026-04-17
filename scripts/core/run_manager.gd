@@ -59,6 +59,26 @@ func begin_floor() -> void:
 	var puzzle_count: int = min(want, candidates.size())
 	for i in puzzle_count:
 		triggers.append({"pos": candidates[i], "type": "PUZZLE"})
+	# Remove used candidates.
+	if puzzle_count > 0:
+		candidates = candidates.slice(puzzle_count)
+
+	# Lore pages — place 2 per floor from remaining dead-ends.
+	var lore_pages: Array = Lore.pick_pages(GameState.current_floor, 2)
+	for i in min(lore_pages.size(), candidates.size()):
+		triggers.append({
+			"pos": candidates[i],
+			"type": "LORE",
+			"lore_id": str(lore_pages[i].id),
+			"lore_text": str(lore_pages[i].text),
+		})
+	if lore_pages.size() > 0 and candidates.size() >= lore_pages.size():
+		candidates = candidates.slice(lore_pages.size())
+
+	# Trap tiles — place 2 per floor from whatever dead-ends remain.
+	var trap_count: int = min(2, candidates.size())
+	for i in trap_count:
+		triggers.append({"pos": candidates[i], "type": "TRAP"})
 
 	_puzzles_remaining = puzzle_count
 	_shop_pending = triggers.any(func(t): return t.type == "SHOP")

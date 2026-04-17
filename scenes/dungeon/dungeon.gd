@@ -37,6 +37,8 @@ const COLOR_WALL_FAR := Color(0.12, 0.11, 0.1)
 const COLOR_TRIGGER_PUZZLE := Color(0.95, 0.65, 0.25)
 const COLOR_TRIGGER_SHOP := Color(0.65, 0.45, 0.95)
 const COLOR_TRIGGER_BOSS := Color(0.95, 0.3, 0.35)
+const COLOR_TRIGGER_TRAP := Color(0.85, 0.75, 0.2)
+const COLOR_TRIGGER_LORE := Color(0.55, 0.85, 0.65)
 const COLOR_MINIMAP_BG := Color(0, 0, 0, 0.6)
 const COLOR_MINIMAP_FLOOR := Color(0.25, 0.22, 0.2)
 const COLOR_MINIMAP_WALL := Color(0.05, 0.05, 0.07)
@@ -45,7 +47,7 @@ const COLOR_MINIMAP_FACING := Color(0.1, 0.25, 0.12)
 
 enum Tile { FLOOR, WALL }
 
-signal trigger_entered(room_type: String)
+signal trigger_entered(trigger_data: Dictionary)
 
 var _tiles: Array = []
 var _tw: int = 0
@@ -238,7 +240,7 @@ func _check_trigger() -> void:
 		if (t.pos as Vector2i) == _player_pos:
 			_triggers.remove_at(i)
 			_active = false
-			trigger_entered.emit(String(t.type))
+			trigger_entered.emit(t)
 			return
 
 # --- Helpers ---
@@ -410,4 +412,6 @@ func _trigger_color(t: String) -> Color:
 	match t:
 		"SHOP": return COLOR_TRIGGER_SHOP
 		"BOSS": return COLOR_TRIGGER_BOSS
+		"TRAP": return COLOR_TRIGGER_TRAP
+		"LORE": return COLOR_TRIGGER_LORE
 		_: return COLOR_TRIGGER_PUZZLE

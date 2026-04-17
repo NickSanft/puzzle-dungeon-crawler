@@ -140,7 +140,8 @@ func _on_floor_started(floor_num: int, tiles: Array, triggers: Array, entrance: 
 func _on_puzzle_remaining_changed(_remaining: int) -> void:
 	_update_hud()
 
-func _on_trigger_entered(trigger_type: String) -> void:
+func _on_trigger_entered(trigger_data: Dictionary) -> void:
+	var trigger_type: String = str(trigger_data.get("type", "PUZZLE"))
 	_current_room_type = trigger_type
 	match trigger_type:
 		"PUZZLE":
@@ -149,6 +150,10 @@ func _on_trigger_entered(trigger_type: String) -> void:
 			_open_shop()
 		"BOSS":
 			_open_boss()
+		"TRAP":
+			_handle_trap()
+		"LORE":
+			_handle_lore(trigger_data)
 
 func _on_floor_completed(floor_num: int) -> void:
 	_clear_overlay()
@@ -341,6 +346,67 @@ func _on_puzzle_failed(wrong: int) -> void:
 		amount = int(ceil(float(wrong) * (1.0 + GameState.boss_density_bonus() * 2.0)))
 	GameState.take_damage(amount)
 	_flash_damage()
+
+func _handle_trap() -> void:
+	_message.text = "TRAP! You stumbled onto a snare."
+	GameState.take_damage(2)
+	_flash_damage()
+	Audio.play_damage()
+	# Brief lock, then back to exploration.
+	await get_tree().create_timer(0.6).timeout
+	_dungeon.set_active(true)
+	_autosave()
+
+func _handle_lore(data: Dictionary) -> void:
+	var lore_id: String = str(data.get("lore_id", ""))
+	var lore_text: String = str(data.get("lore_text", ""))
+	Lore.mark_collected(lore_id)
+	_clear_overlay()
+	_set_backdrop(true)
+	var center := CenterContainer.new()
+	center.anchor_right = 1.0
+	center.anchor_bottom = 1.0
+	_overlay.add_child(center)
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel",
+		PuzzleStyle.panel_style(PuzzleStyle.NONO_PANEL, PuzzleStyle.accent_for_floor(GameState.current_floor)))
+	panel.custom_minimum_size = Vector2(420, 0)
+	center.add_child(panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	panel.add_child(v)
+	var eyebrow := Label.new()
+	eyebrow.text = "Lore Page Discovered"
+	eyebrow.add_theme_font_size_override("font_size", 14)
+	eyebrow.add_theme_color_override("font_color", Color(0.55, 0.85, 0.65))
+	eyebrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(eyebrow)
+	var body := Label.new()
+	body.text = lore_text
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.custom_minimum_size = Vector2(380, 0)
+	body.add_theme_font_size_override("font_size", 16)
+	v.add_child(body)
+	# Check if all floor pages collected for bonus.
+	if Lore.all_floor_collected(GameState.current_floor):
+		var bonus_lbl := Label.new()
+		bonus_lbl.text = "All lore on this floor collected! +%d Glimbos" % Lore.COLLECT_ALL_BONUS
+		bonus_lbl.add_theme_font_size_override("font_size", PuzzleStyle.FONT_BUTTON)
+		bonus_lbl.add_theme_color_override("font_color", PuzzleStyle.NONO_ACCENT)
+		bonus_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(bonus_lbl)
+		SaveSystem.add_glimbos(Lore.COLLECT_ALL_BONUS)
+	var close := Button.new()
+	close.text = "Continue"
+	PuzzleStyle.apply_button_style(close,
+		PuzzleStyle.button_style(PuzzleStyle.NONO_CELL_EMPTY, 0.12))
+	close.pressed.connect(func():
+		_clear_overlay()
+		_set_backdrop(false)
+		_dungeon.set_active(true)
+		_autosave()
+	)
+	v.add_child(close)
 
 func _flash_damage() -> void:
 	if bool(SaveSystem.setting("reduced_motion", false)):

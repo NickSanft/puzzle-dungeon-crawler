@@ -41,7 +41,7 @@ text = "HP: ?"
 
 [node name="Message" type="Label" parent="HUD"]
 layout_mode = 2
-text = "W/S forward-back · A/D strafe · Q/E turn · orange=puzzle · purple=shop · red=boss"
+text = "W/S · A/D strafe · Q/E turn | orange=puzzle · purple=shop · red=boss · yellow=trap · green=lore"
 
 [node name="DebugRow" type="HBoxContainer" parent="HUD"]
 layout_mode = 2
