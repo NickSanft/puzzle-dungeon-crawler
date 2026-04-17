@@ -47,6 +47,14 @@ const COLOR_MINIMAP_FLOOR := Color(0.25, 0.22, 0.2)
 const COLOR_MINIMAP_WALL := Color(0.05, 0.05, 0.07)
 const COLOR_MINIMAP_PLAYER := Color(0.4, 0.9, 0.5)
 const COLOR_MINIMAP_FACING := Color(0.1, 0.25, 0.12)
+const COLOR_MINIMAP_TRAIL := Color(0.4, 0.9, 0.5, 0.35)
+const COLOR_MINIMAP_SOLVED := Color(0.45, 0.45, 0.45, 0.6)
+const COLOR_MINIMAP_PATH := Color(0.75, 0.65, 0.35, 0.4)
+const COLOR_TORCH := Color(0.95, 0.7, 0.3)
+const COLOR_FLOOR_PATTERN_A := Color(0.14, 0.12, 0.1, 0.25)
+const COLOR_FLOOR_PATTERN_B := Color(0.18, 0.15, 0.12, 0.25)
+const COLOR_DOOR_FRAME := Color(0.6, 0.5, 0.35, 0.7)
+const TRAIL_MAX := 30
 
 enum Tile { FLOOR, WALL }
 
@@ -63,6 +71,8 @@ var _active: bool = true
 var _revealed: Dictionary = {}  # Vector2i -> true
 var _debug_reveal_all: bool = false
 var _character_reveal_all: bool = false  # e.g. Archivist permanent reveal
+var _trail: Array[Vector2i] = []
+var _solved_positions: Array[Vector2i] = []
 
 # Animation state.
 var _is_animating: bool = false
@@ -92,6 +102,8 @@ func load_maze(tiles: Array, triggers: Array, entrance: Vector2i) -> void:
 	_anim_kind = ""
 	_anim_progress = 0.0
 	_revealed.clear()
+	_trail.clear()
+	_solved_positions.clear()
 	_update_visibility()
 	queue_redraw()
 
@@ -212,6 +224,9 @@ func _begin_move(target: Vector2i, kind: String) -> void:
 
 func _finish_move(target: Vector2i) -> void:
 	_player_pos = target
+	_trail.append(target)
+	if _trail.size() > TRAIL_MAX:
+		_trail.remove_at(0)
 	_is_animating = false
 	_anim_kind = ""
 	_anim_progress = 0.0
@@ -247,6 +262,7 @@ func _check_trigger() -> void:
 	for i in _triggers.size():
 		var t: Dictionary = _triggers[i]
 		if (t.pos as Vector2i) == _player_pos:
+			_solved_positions.append(t.pos as Vector2i)
 			_triggers.remove_at(i)
 			_active = false
 			trigger_entered.emit(t)
@@ -343,6 +359,7 @@ func _draw_first_person() -> void:
 			COLOR_WALL_EDGE, 1.0)
 
 	# Side walls: far to near with warm→cool gradient + distance fog + edge highlights.
+	# Also: floor pattern, torch glow, door frames.
 	for depth in range(last_open, -1, -1):
 		var tile_pos: Vector2i = _player_pos + fwd_v * depth
 		var near_frame: Rect2 = _frame_at(float(depth) + depth_offset)
@@ -350,11 +367,18 @@ func _draw_first_person() -> void:
 		near_frame.position.x += parallax_x
 		far_frame.position.x += parallax_x
 		var fog_near: float = float(depth) / float(MAX_VIS_DEPTH)
-		var fog_far: float = float(depth + 1) / float(MAX_VIS_DEPTH)
+
+		# Parallax floor pattern (checkerboard between frames).
+		_draw_floor_pattern(near_frame, far_frame, depth, depth_offset)
+
+		# Torch flicker: warm glow at intersections brightens nearby walls.
+		var torch: float = _torch_brightness(depth)
 
 		if _is_wall_or_oob(tile_pos + left_v):
 			var col: Color = _wall_color_at(fog_near).lerp(COLOR_FOG, fog_near * 0.5)
-			col = col.darkened(0.08)  # left walls slightly darker (shadow side)
+			col = col.darkened(0.08)
+			if torch > 0.0:
+				col = col.lerp(COLOR_TORCH, torch)
 			var quad_l := PackedVector2Array([
 				Vector2(near_frame.position.x, near_frame.position.y),
 				Vector2(far_frame.position.x, far_frame.position.y),
@@ -362,7 +386,6 @@ func _draw_first_person() -> void:
 				Vector2(near_frame.position.x, near_frame.position.y + near_frame.size.y),
 			])
 			draw_colored_polygon(quad_l, col)
-			# Top-edge highlight
 			draw_line(
 				Vector2(near_frame.position.x, near_frame.position.y),
 				Vector2(far_frame.position.x, far_frame.position.y),
@@ -370,6 +393,8 @@ func _draw_first_person() -> void:
 
 		if _is_wall_or_oob(tile_pos + right_v):
 			var col: Color = _wall_color_at(fog_near).lerp(COLOR_FOG, fog_near * 0.45)
+			if torch > 0.0:
+				col = col.lerp(COLOR_TORCH, torch)
 			var nx: float = near_frame.position.x + near_frame.size.x
 			var fx: float = far_frame.position.x + far_frame.size.x
 			var quad_r := PackedVector2Array([
@@ -384,9 +409,83 @@ func _draw_first_person() -> void:
 				Vector2(fx, far_frame.position.y),
 				COLOR_WALL_EDGE, 1.0)
 
+		# Door frames on tiles that contain a trigger.
+		var trig_at_depth: Dictionary = _trigger_at(tile_pos)
+		if not trig_at_depth.is_empty() and depth >= 1:
+			_draw_door_frame(near_frame, far_frame, str(trig_at_depth.type))
+
 # Warm near-stone → cool far-shadow wall colour by distance fraction.
 func _wall_color_at(t: float) -> Color:
 	return COLOR_WALL_NEAR.lerp(COLOR_WALL_FAR_TINT, t)
+
+# Is the tile at pos an intersection? (3+ open floor neighbours = corridor crossing)
+func _is_intersection(pos: Vector2i) -> bool:
+	if pos.x < 0 or pos.y < 0 or pos.x >= _tw or pos.y >= _th:
+		return false
+	if int(_tiles[pos.y][pos.x]) == Tile.WALL:
+		return false
+	var open: int = 0
+	for d in FACING_VECTORS:
+		var n: Vector2i = pos + d
+		if n.x >= 0 and n.y >= 0 and n.x < _tw and n.y < _th and int(_tiles[n.y][n.x]) == Tile.FLOOR:
+			open += 1
+	return open >= 3
+
+# Draw a parallax checkerboard on the floor between two depth frames.
+func _draw_floor_pattern(near_f: Rect2, far_f: Rect2, depth: int, depth_offset: float) -> void:
+	var y_far: float = far_f.position.y + far_f.size.y
+	var y_near: float = near_f.position.y + near_f.size.y
+	var x_left_near: float = near_f.position.x
+	var x_right_near: float = near_f.position.x + near_f.size.x
+	var x_left_far: float = far_f.position.x
+	var x_right_far: float = far_f.position.x + far_f.size.x
+	# Split the floor band into a 2-column checker.
+	var mid_y: float = (y_far + y_near) * 0.5
+	var mid_x_near: float = (x_left_near + x_right_near) * 0.5
+	var mid_x_far: float = (x_left_far + x_right_far) * 0.5
+	var parity: int = (depth + int(abs(depth_offset) * 2.0)) % 2
+	var col_a: Color = COLOR_FLOOR_PATTERN_A if parity == 0 else COLOR_FLOOR_PATTERN_B
+	var col_b: Color = COLOR_FLOOR_PATTERN_B if parity == 0 else COLOR_FLOOR_PATTERN_A
+	# Left half top
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(x_left_far, y_far), Vector2(mid_x_far, y_far),
+		Vector2(mid_x_near, mid_y), Vector2(x_left_near, mid_y)]), col_a)
+	# Right half top
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(mid_x_far, y_far), Vector2(x_right_far, y_far),
+		Vector2(x_right_near, mid_y), Vector2(mid_x_near, mid_y)]), col_b)
+	# Left half bottom
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(x_left_near, mid_y), Vector2(mid_x_near, mid_y),
+		Vector2(mid_x_near, y_near), Vector2(x_left_near, y_near)]), col_b)
+	# Right half bottom
+	draw_colored_polygon(PackedVector2Array([
+		Vector2(mid_x_near, mid_y), Vector2(x_right_near, mid_y),
+		Vector2(x_right_near, y_near), Vector2(mid_x_near, y_near)]), col_a)
+
+# Draw a doorway frame when a trigger is at a certain depth.
+func _draw_door_frame(near_f: Rect2, far_f: Rect2, trigger_type: String) -> void:
+	var col: Color = _trigger_color(trigger_type).lerp(COLOR_DOOR_FRAME, 0.5)
+	# Left pillar
+	draw_line(Vector2(far_f.position.x + 4, far_f.position.y),
+		Vector2(far_f.position.x + 4, far_f.position.y + far_f.size.y), col, 2.0)
+	# Right pillar
+	var rx: float = far_f.position.x + far_f.size.x - 4
+	draw_line(Vector2(rx, far_f.position.y),
+		Vector2(rx, far_f.position.y + far_f.size.y), col, 2.0)
+	# Lintel (top bar)
+	draw_line(Vector2(far_f.position.x + 4, far_f.position.y + 2),
+		Vector2(rx, far_f.position.y + 2), col, 2.5)
+
+# Torch flicker: add warm glow on walls near intersections.
+func _torch_brightness(depth: int) -> float:
+	# Returns 0.0 if no torch here, ~0.15–0.25 if a torch is nearby.
+	var fwd_v: Vector2i = FACING_VECTORS[_player_facing]
+	var tile: Vector2i = _player_pos + fwd_v * depth
+	if not _is_intersection(tile):
+		return 0.0
+	var flicker: float = 0.18 + 0.07 * sin(Time.get_ticks_msec() * 0.006 + float(depth) * 1.7)
+	return flicker
 
 func _draw_trigger_marker(depth: float, parallax_x: float, trigger_type: String) -> void:
 	var near_frame: Rect2 = _frame_at(depth)
@@ -423,6 +522,7 @@ func _draw_minimap() -> void:
 	var mh: int = _th * MINIMAP_TILE
 	var origin := Vector2(VIEW_W - mw - MINIMAP_MARGIN, MINIMAP_MARGIN)
 	draw_rect(Rect2(origin - Vector2(4, 4), Vector2(mw + 8, mh + 8)), COLOR_MINIMAP_BG)
+	# Base tiles.
 	for y in _th:
 		for x in _tw:
 			var rect := Rect2(
@@ -434,17 +534,39 @@ func _draw_minimap() -> void:
 				continue
 			var c: Color = COLOR_MINIMAP_WALL if int(_tiles[y][x]) == Tile.WALL else COLOR_MINIMAP_FLOOR
 			draw_rect(rect, c)
+	# Trail: fading dots showing where the player has been.
+	for i in _trail.size():
+		var t: float = float(i) / float(max(1, _trail.size()))
+		var tp: Vector2i = _trail[i]
+		var tpc: Vector2 = origin + Vector2(
+			tp.x * MINIMAP_TILE + MINIMAP_TILE * 0.5,
+			tp.y * MINIMAP_TILE + MINIMAP_TILE * 0.5)
+		draw_circle(tpc, MINIMAP_TILE * 0.2,
+			Color(COLOR_MINIMAP_TRAIL.r, COLOR_MINIMAP_TRAIL.g, COLOR_MINIMAP_TRAIL.b,
+				COLOR_MINIMAP_TRAIL.a * t))
+	# Solved trigger locations (grey breadcrumbs).
+	for sp in _solved_positions:
+		var spc: Vector2 = origin + Vector2(
+			sp.x * MINIMAP_TILE + MINIMAP_TILE * 0.5,
+			sp.y * MINIMAP_TILE + MINIMAP_TILE * 0.5)
+		draw_circle(spc, MINIMAP_TILE * 0.25, COLOR_MINIMAP_SOLVED)
+	# Path to nearest unsolved trigger (dim accent dots).
+	_draw_minimap_path(origin)
+	# Active triggers.
 	for trig in _triggers:
 		var tp: Vector2i = trig.pos
-		if not (_debug_reveal_all or _revealed.has(tp)):
+		if not (_debug_reveal_all or _character_reveal_all or _revealed.has(tp)):
 			continue
 		draw_rect(Rect2(
 			origin + Vector2(tp.x * MINIMAP_TILE, tp.y * MINIMAP_TILE),
-			Vector2(MINIMAP_TILE, MINIMAP_TILE)), _trigger_color(trig.type))
+			Vector2(MINIMAP_TILE, MINIMAP_TILE)), _trigger_color(str(trig.type)))
+	# Player dot with pulse.
+	var pulse: float = 1.0 + 0.15 * sin(Time.get_ticks_msec() * 0.005)
 	var pc: Vector2 = origin + Vector2(
 		_player_pos.x * MINIMAP_TILE + MINIMAP_TILE * 0.5,
 		_player_pos.y * MINIMAP_TILE + MINIMAP_TILE * 0.5)
-	draw_circle(pc, MINIMAP_TILE * 0.45, COLOR_MINIMAP_PLAYER)
+	draw_circle(pc, MINIMAP_TILE * 0.45 * pulse, COLOR_MINIMAP_PLAYER)
+	# Facing chevron.
 	var fv: Vector2i = FACING_VECTORS[_player_facing]
 	var fdir := Vector2(fv.x, fv.y)
 	var perp := Vector2(-fdir.y, fdir.x)
@@ -452,6 +574,49 @@ func _draw_minimap() -> void:
 	var base_l: Vector2 = pc - fdir * MINIMAP_TILE * 0.3 - perp * MINIMAP_TILE * 0.35
 	var base_r: Vector2 = pc - fdir * MINIMAP_TILE * 0.3 + perp * MINIMAP_TILE * 0.35
 	draw_colored_polygon(PackedVector2Array([tip, base_l, base_r]), COLOR_MINIMAP_FACING)
+
+func _draw_minimap_path(origin: Vector2) -> void:
+	# BFS from player to the nearest unsolved trigger; draw the path as dots.
+	if _triggers.is_empty() or _tiles.is_empty():
+		return
+	var target_set: Dictionary = {}
+	for t in _triggers:
+		target_set[t.pos as Vector2i] = true
+	var dist: Dictionary = {_player_pos: 0}
+	var prev: Dictionary = {}
+	var q: Array[Vector2i] = [_player_pos]
+	var found: Vector2i = Vector2i(-1, -1)
+	while not q.is_empty():
+		var cur: Vector2i = q.pop_front()
+		if target_set.has(cur) and cur != _player_pos:
+			found = cur
+			break
+		for d in FACING_VECTORS:
+			var n: Vector2i = cur + d
+			if n.x < 0 or n.y < 0 or n.x >= _tw or n.y >= _th:
+				continue
+			if int(_tiles[n.y][n.x]) == Tile.WALL:
+				continue
+			if dist.has(n):
+				continue
+			dist[n] = int(dist[cur]) + 1
+			prev[n] = cur
+			q.append(n)
+	if found.x < 0:
+		return
+	# Trace back and draw.
+	var path: Array[Vector2i] = []
+	var step: Vector2i = found
+	while prev.has(step):
+		path.append(step)
+		step = prev[step]
+	for p in path:
+		if not (_debug_reveal_all or _character_reveal_all or _revealed.has(p)):
+			continue
+		var ppc: Vector2 = origin + Vector2(
+			p.x * MINIMAP_TILE + MINIMAP_TILE * 0.5,
+			p.y * MINIMAP_TILE + MINIMAP_TILE * 0.5)
+		draw_circle(ppc, MINIMAP_TILE * 0.15, COLOR_MINIMAP_PATH)
 
 func _trigger_at(pos: Vector2i) -> Dictionary:
 	for t in _triggers:
