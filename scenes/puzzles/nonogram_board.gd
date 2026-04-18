@@ -8,8 +8,8 @@ const CELL_EMPTY := 0
 const CELL_FILLED := 1
 const CELL_MARKED := -1
 
-const NONO_CELL_NORMAL := 36
-const NONO_CELL_LARGE := 52
+const NONO_CELL_NORMAL := 44
+const NONO_CELL_LARGE := 56
 const CELL_GAP := 2
 
 static func _cell_size() -> int:
@@ -32,6 +32,7 @@ var _col_clue_cols: Array = []  # VBoxContainer per col
 var _status: Label
 var _submit_btn: Button
 var _selected_color: int = 1
+var _touch_mark_mode: bool = false  # when true, left-click marks instead of fills
 var _timer_label: Label
 var _timer_remaining: float = 0.0
 var _timer_active: bool = false
@@ -185,11 +186,35 @@ func _build_ui() -> void:
 			swatch.pressed.connect(_on_select_color.bind(ci))
 			palette_box.add_child(swatch)
 
+	# Fill / Mark toggle for touch devices (no right-click on mobile).
+	var mode_row := HBoxContainer.new()
+	mode_row.add_theme_constant_override("separation", 8)
+	mode_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	root.add_child(mode_row)
+	var fill_btn := Button.new()
+	fill_btn.text = "Fill"
+	fill_btn.toggle_mode = true
+	fill_btn.button_pressed = not _touch_mark_mode
+	fill_btn.custom_minimum_size = Vector2(80, 44)
+	PuzzleStyle.apply_button_style(fill_btn,
+		PuzzleStyle.button_style(PuzzleStyle.NONO_CELL_FILLED.darkened(0.3), 0.15, PuzzleStyle.NONO_CELL_FILLED))
+	fill_btn.pressed.connect(func(): _touch_mark_mode = false; _refresh_mode_buttons(fill_btn, mark_btn))
+	mode_row.add_child(fill_btn)
+	var mark_btn := Button.new()
+	mark_btn.text = "Mark X"
+	mark_btn.toggle_mode = true
+	mark_btn.button_pressed = _touch_mark_mode
+	mark_btn.custom_minimum_size = Vector2(80, 44)
+	PuzzleStyle.apply_button_style(mark_btn,
+		PuzzleStyle.button_style(PuzzleStyle.NONO_CELL_MARKED.darkened(0.2), 0.15, PuzzleStyle.NONO_CELL_MARKED))
+	mark_btn.pressed.connect(func(): _touch_mark_mode = true; _refresh_mode_buttons(fill_btn, mark_btn))
+	mode_row.add_child(mark_btn)
+
 	var bottom := HBoxContainer.new()
 	bottom.add_theme_constant_override("separation", 8)
 	root.add_child(bottom)
 	_status = Label.new()
-	_status.text = "Left click = fill, right click = mark"
+	_status.text = "Tap to fill, or toggle Mark X for marking."
 	_status.add_theme_font_size_override("font_size", PuzzleStyle.FONT_BUTTON)
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bottom.add_child(_status)
@@ -245,11 +270,18 @@ func _clue_label(entry, center: bool) -> Label:
 		lbl.add_theme_color_override("font_color", PuzzleStyle.NONO_CLUE_FG)
 	return lbl
 
+func _refresh_mode_buttons(fill_btn: Button, mark_btn: Button) -> void:
+	fill_btn.button_pressed = not _touch_mark_mode
+	mark_btn.button_pressed = _touch_mark_mode
+
 func _on_cell_input(event: InputEvent, x: int, y: int) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			var target: int = _selected_color if puzzle.is_color else CELL_FILLED
-			_cycle(x, y, target)
+			if _touch_mark_mode:
+				_cycle(x, y, CELL_MARKED)
+			else:
+				var target: int = _selected_color if puzzle.is_color else CELL_FILLED
+				_cycle(x, y, target)
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			_cycle(x, y, CELL_MARKED)
 

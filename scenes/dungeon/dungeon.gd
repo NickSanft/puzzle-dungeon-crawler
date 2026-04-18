@@ -192,7 +192,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
-	match event.keycode:
+	handle_keycode(event.keycode)
+
+func handle_keycode(keycode: int) -> void:
+	if not _active or _is_animating or _tiles.is_empty():
+		return
+	match keycode:
 		KEY_W, KEY_UP:
 			_try_step(1, 0, "forward")
 		KEY_S, KEY_DOWN:

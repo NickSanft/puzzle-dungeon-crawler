@@ -7,6 +7,7 @@ const WordleBoardScene := preload("res://scenes/puzzles/wordle_board.tscn")
 const ShopScene := preload("res://scenes/ui/shop.tscn")
 const PuzzleChoiceScene := preload("res://scenes/ui/puzzle_choice.tscn")
 const PauseMenuScene := preload("res://scenes/ui/pause_menu.tscn")
+const TouchControlsScene := preload("res://scenes/ui/touch_controls.tscn")
 
 const FLOOR_NAMES := ["The Margin", "The Library", "The Ink Well"]
 const FLOOR_QUOTES := [
@@ -22,6 +23,7 @@ const BOSS_SIZE := 10
 @onready var _hud: Label = $HUD/HPGlimbos
 @onready var _message: Label = $HUD/Message
 @onready var _reveal_btn: Button = $HUD/DebugRow/RevealMap
+@onready var _pause_btn: Button = $HUD/DebugRow/PauseBtn
 @onready var _dungeon_layer: Node2D = $DungeonLayer
 @onready var _overlay: Control = $Overlay
 @onready var _backdrop: ColorRect = $Overlay/Backdrop
@@ -36,6 +38,7 @@ var _pending_reward_mult: float = 1.0
 var _resuming: bool = false
 var _paused: bool = false
 var _pause_menu: Control
+var _touch_controls: TouchControls
 
 func _ready() -> void:
 	_dungeon = DungeonScene.instantiate()
@@ -48,6 +51,11 @@ func _ready() -> void:
 	GameState.hp_changed.connect(func(_c, _m): _update_hud())
 	GameState.glimbos_earned.connect(func(_a, _b): _update_hud())
 	_reveal_btn.toggled.connect(_on_reveal_toggled)
+	_pause_btn.pressed.connect(_open_pause)
+	# Touch controls + pause button.
+	_touch_controls = TouchControlsScene.instantiate()
+	_touch_controls.key_pressed.connect(_on_touch_key)
+	add_child(_touch_controls)
 	if _resuming and SaveSystem.has_saved_run():
 		_restore_from_save()
 	else:
@@ -81,6 +89,11 @@ func _restore_from_save() -> void:
 	_clear_overlay()
 	_set_backdrop(false)
 	_message.text = "Continuing your run on floor %d." % GameState.current_floor
+
+func _on_touch_key(keycode: int) -> void:
+	if _paused or _dungeon == null:
+		return
+	_dungeon.handle_keycode(keycode)
 
 func _on_reveal_toggled(on: bool) -> void:
 	_dungeon.set_debug_reveal_all(on)

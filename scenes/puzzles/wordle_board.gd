@@ -6,8 +6,8 @@ signal failed(wrong_cells: int)
 
 const CELL_SIZE := 48
 const CELL_GAP := 4
-const KEY_W := 36
-const KEY_H := 40
+const KEY_W := 44
+const KEY_H := 48
 
 const COLOR_GREEN := Color(0.42, 0.68, 0.44)
 const COLOR_YELLOW := Color(0.78, 0.72, 0.34)

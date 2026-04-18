@@ -4,8 +4,8 @@ extends Control
 signal solved(wrong_cells: int)
 signal failed(wrong_cells: int)
 
-const SUDO_CELL_NORMAL := 40
-const SUDO_CELL_LARGE := 56
+const SUDO_CELL_NORMAL := 44
+const SUDO_CELL_LARGE := 58
 
 static func _cell_size() -> int:
 	return SUDO_CELL_LARGE if bool(SaveSystem.setting("large_cells", false)) else SUDO_CELL_NORMAL
