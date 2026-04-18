@@ -14,6 +14,7 @@ func _ready() -> void:
 	_test_sudoku(t)
 	_test_run_manager(t)
 	_test_maze(t)
+	_test_wordle(t)
 	var ok := t.report()
 	get_tree().quit(0 if ok else 1)
 
@@ -228,3 +229,37 @@ func _test_maze(t: TestFramework) -> void:
 	t.assert_eq(unreachable, 0, "every cell centre reachable from entrance")
 	# Dead-ends exist (recursive backtracker always produces >= 1).
 	t.assert_true((maze.dead_ends as Array).size() >= 2, "maze has multiple dead-ends")
+
+func _test_wordle(t: TestFramework) -> void:
+	t.suite("Wordle")
+	# Word lists have entries and correct lengths.
+	var w4: Array = WordleWordList.words_for_length(4)
+	var w5: Array = WordleWordList.words_for_length(5)
+	var w6: Array = WordleWordList.words_for_length(6)
+	t.assert_true(w4.size() >= 50, "4-letter list has enough words (%d)" % w4.size())
+	t.assert_true(w5.size() >= 50, "5-letter list has enough words (%d)" % w5.size())
+	t.assert_true(w6.size() >= 50, "6-letter list has enough words (%d)" % w6.size())
+	for word in w5:
+		t.assert_eq(str(word).length(), 5, "5-letter word '%s' has correct length" % word)
+		if str(word).length() != 5:
+			break
+	# Feedback: exact match = all green.
+	var fb_exact: Array = WordlePuzzle.evaluate("CRANE", "CRANE")
+	for i in 5:
+		t.assert_eq(int(fb_exact[i]), WordlePuzzle.Feedback.GREEN, "exact match pos %d is GREEN" % i)
+	# Feedback: no match = all grey.
+	var fb_none: Array = WordlePuzzle.evaluate("BLIMP", "CRANE")
+	for i in 5:
+		t.assert_eq(int(fb_none[i]), WordlePuzzle.Feedback.GREY, "no-match pos %d is GREY" % i)
+	# Feedback: mixed.
+	var fb_mix: Array = WordlePuzzle.evaluate("AROSE", "CRANE")
+	t.assert_eq(int(fb_mix[0]), WordlePuzzle.Feedback.YELLOW, "'A' in AROSE vs CRANE is YELLOW")
+	t.assert_eq(int(fb_mix[1]), WordlePuzzle.Feedback.YELLOW, "'R' in AROSE vs CRANE is YELLOW")
+	t.assert_eq(int(fb_mix[2]), WordlePuzzle.Feedback.GREY, "'O' in AROSE vs CRANE is GREY")
+	t.assert_eq(int(fb_mix[3]), WordlePuzzle.Feedback.GREY, "'S' in AROSE vs CRANE is GREY")
+	t.assert_eq(int(fb_mix[4]), WordlePuzzle.Feedback.YELLOW, "'E' in AROSE vs CRANE is YELLOW")
+	# Generator produces a valid puzzle.
+	RNG.set_seed(99)
+	var p: WordlePuzzle = WordleGenerator.generate(2)
+	t.assert_eq(p.word_length, 5, "floor 2 generates 5-letter puzzle")
+	t.assert_true(WordleWordList.is_valid_word(p.target_word), "generated word is in the list")

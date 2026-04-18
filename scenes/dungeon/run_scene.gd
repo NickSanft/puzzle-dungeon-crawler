@@ -3,6 +3,7 @@ extends Control
 const DungeonScene := preload("res://scenes/dungeon/dungeon.tscn")
 const NonogramBoardScene := preload("res://scenes/puzzles/nonogram_board.tscn")
 const SudokuBoardScene := preload("res://scenes/puzzles/sudoku_board.tscn")
+const WordleBoardScene := preload("res://scenes/puzzles/wordle_board.tscn")
 const ShopScene := preload("res://scenes/ui/shop.tscn")
 const PuzzleChoiceScene := preload("res://scenes/ui/puzzle_choice.tscn")
 const PauseMenuScene := preload("res://scenes/ui/pause_menu.tscn")
@@ -177,23 +178,27 @@ func _on_floor_completed(floor_num: int) -> void:
 func _open_puzzle(puzzle_size: int) -> void:
 	_clear_overlay()
 	_set_backdrop(true)
-	# Decide puzzle type up front so the choice card never lies about what
-	# you're about to play. Sudoku slots skip the choice screen entirely.
-	if _should_use_sudoku():
-		_pending_reward_mult = 1.0
-		_open_sudoku()
-		return
-	var choice: PuzzleChoice = PuzzleChoiceScene.instantiate()
-	_overlay.add_child(choice)
-	choice.show_choice(puzzle_size, GameState.current_floor)
-	choice.chosen.connect(func(opt: Dictionary):
-		choice.queue_free()
-		_pending_reward_mult = float(opt.reward_mult)
-		var density: float = clamp(
-			RunManager.density_for(GameState.current_floor) + float(opt.density_delta),
-			0.4, 0.78)
-		_spawn_nonogram(int(opt.size), density)
-	)
+	var ptype: String = _pick_puzzle_type()
+	match ptype:
+		"sudoku":
+			_pending_reward_mult = 1.0
+			_open_sudoku()
+		"wordle":
+			_pending_reward_mult = 1.0
+			_open_wordle()
+		_:
+			# Nonogram: show size choice screen.
+			var choice: PuzzleChoice = PuzzleChoiceScene.instantiate()
+			_overlay.add_child(choice)
+			choice.show_choice(puzzle_size, GameState.current_floor)
+			choice.chosen.connect(func(opt: Dictionary):
+				choice.queue_free()
+				_pending_reward_mult = float(opt.reward_mult)
+				var density: float = clamp(
+					RunManager.density_for(GameState.current_floor) + float(opt.density_delta),
+					0.4, 0.78)
+				_spawn_nonogram(int(opt.size), density)
+			)
 
 func _spawn_nonogram(puzzle_size: int, density: float) -> void:
 	var use_color: bool = SaveSystem.has_unlock("color_nonograms") and _puzzles_solved_on_floor >= 2
@@ -213,8 +218,12 @@ func _spawn_nonogram(puzzle_size: int, density: float) -> void:
 	board.failed.connect(_on_puzzle_failed)
 	_current_board = board
 
-func _should_use_sudoku() -> bool:
-	return (_puzzles_solved_on_floor + GameState.current_floor) % 2 == 1
+func _pick_puzzle_type() -> String:
+	var idx: int = _puzzles_solved_on_floor + GameState.current_floor
+	match idx % 3:
+		1: return "sudoku"
+		2: return "wordle"
+		_: return "nonogram"
 
 func _open_sudoku() -> void:
 	_set_backdrop(true)
@@ -226,6 +235,28 @@ func _open_sudoku() -> void:
 	board.solved.connect(_on_sudoku_solved)
 	board.failed.connect(_on_puzzle_failed)
 	_current_board = board
+
+func _open_wordle() -> void:
+	_set_backdrop(true)
+	var puzzle: WordlePuzzle = WordleGenerator.generate(GameState.current_floor)
+	var board: WordleBoard = WordleBoardScene.instantiate()
+	_overlay.add_child(board)
+	board.load_puzzle(puzzle)
+	board.solved.connect(_on_wordle_solved)
+	board.failed.connect(_on_puzzle_failed)
+	_current_board = board
+
+func _on_wordle_solved(_wrong: int) -> void:
+	var guesses: int = 6
+	if _current_board != null and _current_board.has_method("guesses_used"):
+		guesses = _current_board.guesses_used()
+	var reward: int = WordleBoard.WORDLE_REWARD.get(guesses, 3)
+	GameState.award_glimbos(reward)
+	_puzzles_solved_on_floor += 1
+	if _current_board != null and _current_board.has_method("show_reward_counter"):
+		_current_board.show_reward_counter(reward)
+	await get_tree().create_timer(0.9).timeout
+	_resume_exploration("PUZZLE")
 
 func _on_sudoku_solved(_wrong: int) -> void:
 	GameState.award_glimbos(SUDOKU_REWARD)
