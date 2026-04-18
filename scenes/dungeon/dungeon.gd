@@ -53,7 +53,12 @@ const COLOR_MINIMAP_PATH := Color(0.75, 0.65, 0.35, 0.4)
 const COLOR_TORCH := Color(0.95, 0.7, 0.3)
 const COLOR_FLOOR_PATTERN_A := Color(0.14, 0.12, 0.1, 0.25)
 const COLOR_FLOOR_PATTERN_B := Color(0.18, 0.15, 0.12, 0.25)
+const COLOR_FLOOR_GROUT := Color(0.06, 0.05, 0.04, 0.4)
 const COLOR_DOOR_FRAME := Color(0.6, 0.5, 0.35, 0.7)
+const COLOR_MORTAR := Color(0.0, 0.0, 0.0, 0.18)
+const COLOR_BEAM := Color(0.08, 0.07, 0.06, 0.55)
+const COLOR_MOSS := Color(0.2, 0.35, 0.18)
+const COLOR_WALL_SHADOW := Color(0.0, 0.0, 0.0, 0.3)  # base-of-wall AO strip
 const TRAIL_MAX := 30
 
 enum Tile { FLOOR, WALL }
@@ -348,10 +353,13 @@ func _draw_first_person() -> void:
 	# Back wall at the blocker, fogged toward distance.
 	if blocker <= MAX_VIS_DEPTH:
 		var fog_t: float = float(blocker) / float(MAX_VIS_DEPTH)
+		var back_tile: Vector2i = _player_pos + fwd_v * blocker
 		var back_col: Color = _wall_color_at(fog_t).lerp(COLOR_FOG, fog_t * 0.6)
+		back_col = _varied_wall_color(back_col, back_tile, 2)
 		var back_frame: Rect2 = _frame_at(float(blocker) + depth_offset)
 		back_frame.position.x += parallax_x
 		draw_rect(back_frame, back_col)
+		_draw_back_wall_stones(back_frame)
 		# Top-edge highlight on the back wall.
 		draw_line(
 			Vector2(back_frame.position.x, back_frame.position.y),
@@ -368,8 +376,12 @@ func _draw_first_person() -> void:
 		far_frame.position.x += parallax_x
 		var fog_near: float = float(depth) / float(MAX_VIS_DEPTH)
 
-		# Parallax floor pattern (checkerboard between frames).
+		# Ceiling support beam at this depth boundary.
+		_draw_ceiling_beam(near_frame, far_frame)
+
+		# Parallax floor pattern (checkerboard between frames) + grout.
 		_draw_floor_pattern(near_frame, far_frame, depth, depth_offset)
+		_draw_floor_grout(near_frame, far_frame)
 
 		# Torch flicker: warm glow at intersections brightens nearby walls.
 		var torch: float = _torch_brightness(depth)
@@ -377,6 +389,7 @@ func _draw_first_person() -> void:
 		if _is_wall_or_oob(tile_pos + left_v):
 			var col: Color = _wall_color_at(fog_near).lerp(COLOR_FOG, fog_near * 0.5)
 			col = col.darkened(0.08)
+			col = _varied_wall_color(col, tile_pos, 0)
 			if torch > 0.0:
 				col = col.lerp(COLOR_TORCH, torch)
 			var quad_l := PackedVector2Array([
@@ -386,6 +399,9 @@ func _draw_first_person() -> void:
 				Vector2(near_frame.position.x, near_frame.position.y + near_frame.size.y),
 			])
 			draw_colored_polygon(quad_l, col)
+			_draw_stone_lines(quad_l, depth)
+			_draw_wall_base_shadow(quad_l)
+			_draw_moss(quad_l, depth)
 			draw_line(
 				Vector2(near_frame.position.x, near_frame.position.y),
 				Vector2(far_frame.position.x, far_frame.position.y),
@@ -393,6 +409,7 @@ func _draw_first_person() -> void:
 
 		if _is_wall_or_oob(tile_pos + right_v):
 			var col: Color = _wall_color_at(fog_near).lerp(COLOR_FOG, fog_near * 0.45)
+			col = _varied_wall_color(col, tile_pos, 1)
 			if torch > 0.0:
 				col = col.lerp(COLOR_TORCH, torch)
 			var nx: float = near_frame.position.x + near_frame.size.x
@@ -404,10 +421,21 @@ func _draw_first_person() -> void:
 				Vector2(nx, near_frame.position.y + near_frame.size.y),
 			])
 			draw_colored_polygon(quad_r, col)
+			_draw_stone_lines(quad_r, depth)
+			_draw_wall_base_shadow(quad_r)
+			_draw_moss(quad_r, depth)
 			draw_line(
 				Vector2(nx, near_frame.position.y),
 				Vector2(fx, far_frame.position.y),
 				COLOR_WALL_EDGE, 1.0)
+
+		# When a side is OPEN (no wall), draw a "wall return" — the visible
+		# thickness of the wall at the corridor corner — so the back wall
+		# doesn't float with gaps on the sides.
+		if not _is_wall_or_oob(tile_pos + left_v):
+			_draw_side_opening(near_frame, far_frame, true, tile_pos, left_v, fwd_v, fog_near, torch)
+		if not _is_wall_or_oob(tile_pos + right_v):
+			_draw_side_opening(near_frame, far_frame, false, tile_pos, right_v, fwd_v, fog_near, torch)
 
 		# Door frames on tiles that contain a trigger.
 		var trig_at_depth: Dictionary = _trigger_at(tile_pos)
@@ -476,6 +504,163 @@ func _draw_door_frame(near_f: Rect2, far_f: Rect2, trigger_type: String) -> void
 	# Lintel (top bar)
 	draw_line(Vector2(far_f.position.x + 4, far_f.position.y + 2),
 		Vector2(rx, far_f.position.y + 2), col, 2.5)
+
+# --- Wall & floor detail drawing -----------------------------------------
+
+# Hash a 2D position into a deterministic 0..1 float for procedural variation.
+static func _tile_hash(x: int, y: int) -> float:
+	var h: int = (x * 374761393 + y * 668265263) & 0x7fffffff
+	h = ((h ^ (h >> 13)) * 1274126177) & 0x7fffffff
+	return float(h & 0xffff) / 65535.0
+
+# Per-wall color variation: shift the base wall color slightly using a hash
+# of the tile's world position so identical corridors read as distinct.
+func _varied_wall_color(base: Color, tile: Vector2i, side: int) -> Color:
+	var h: float = _tile_hash(tile.x * 3 + side, tile.y * 7) - 0.5
+	var shift: float = h * 0.06
+	return Color(
+		clamp(base.r + shift, 0, 1),
+		clamp(base.g + shift * 0.8, 0, 1),
+		clamp(base.b + shift * 0.5, 0, 1),
+		base.a)
+
+# Draw horizontal mortar joints + a vertical seam on a wall quad to suggest
+# stone blocks. Works for both left and right side walls.
+func _draw_stone_lines(quad: PackedVector2Array, depth: int) -> void:
+	# quad = [near_top, far_top, far_bot, near_bot] (4 corners)
+	var near_top: Vector2 = quad[0]
+	var far_top: Vector2 = quad[1]
+	var near_bot: Vector2 = quad[3]
+	var far_bot: Vector2 = quad[2]
+	var height: float = near_bot.y - near_top.y
+	if height < 16:
+		return
+	# 3-4 horizontal mortar lines evenly spaced.
+	var rows: int = 3 if height < 60 else 4
+	for i in range(1, rows + 1):
+		var t: float = float(i) / float(rows + 1)
+		var left: Vector2 = near_top.lerp(near_bot, t)
+		var right: Vector2 = far_top.lerp(far_bot, t)
+		draw_line(left, right, COLOR_MORTAR, 1.0)
+	# One vertical seam at the midpoint of the wall face.
+	var mid_top: Vector2 = near_top.lerp(far_top, 0.5)
+	var mid_bot: Vector2 = near_bot.lerp(far_bot, 0.5)
+	draw_line(mid_top, mid_bot, COLOR_MORTAR, 1.0)
+
+# Draw stone block pattern on the back (front-facing) wall.
+func _draw_back_wall_stones(frame: Rect2) -> void:
+	if frame.size.x < 12 or frame.size.y < 12:
+		return
+	var rows: int = 3 if frame.size.y < 80 else 5
+	for i in range(1, rows + 1):
+		var y: float = frame.position.y + frame.size.y * float(i) / float(rows + 1)
+		draw_line(Vector2(frame.position.x, y),
+			Vector2(frame.position.x + frame.size.x, y), COLOR_MORTAR, 1.0)
+	var cols: int = 2 if frame.size.x < 50 else 3
+	for i in range(1, cols + 1):
+		var x: float = frame.position.x + frame.size.x * float(i) / float(cols + 1)
+		draw_line(Vector2(x, frame.position.y),
+			Vector2(x, frame.position.y + frame.size.y), COLOR_MORTAR, 1.0)
+
+# Shadow strip at the base of a wall quad (ambient occlusion).
+func _draw_wall_base_shadow(quad: PackedVector2Array) -> void:
+	var near_bot: Vector2 = quad[3]
+	var far_bot: Vector2 = quad[2]
+	var near_top: Vector2 = quad[0]
+	var far_top: Vector2 = quad[1]
+	var shadow_t: float = 0.12
+	var near_shadow: Vector2 = near_bot.lerp(near_top, shadow_t)
+	var far_shadow: Vector2 = far_bot.lerp(far_top, shadow_t)
+	draw_colored_polygon(PackedVector2Array([
+		near_shadow, far_shadow, far_bot, near_bot
+	]), COLOR_WALL_SHADOW)
+
+# Moss tint on the lower portion of far walls (depth >= 3).
+func _draw_moss(quad: PackedVector2Array, depth: int) -> void:
+	if depth < 3:
+		return
+	var near_bot: Vector2 = quad[3]
+	var far_bot: Vector2 = quad[2]
+	var near_top: Vector2 = quad[0]
+	var far_top: Vector2 = quad[1]
+	var moss_t: float = 0.25
+	var near_moss: Vector2 = near_bot.lerp(near_top, moss_t)
+	var far_moss: Vector2 = far_bot.lerp(far_top, moss_t)
+	var intensity: float = clamp((float(depth) - 2.0) * 0.12, 0.0, 0.3)
+	draw_colored_polygon(PackedVector2Array([
+		near_moss, far_moss, far_bot, near_bot
+	]), Color(COLOR_MOSS.r, COLOR_MOSS.g, COLOR_MOSS.b, intensity))
+
+# Ceiling support beam at a depth boundary.
+func _draw_ceiling_beam(near_f: Rect2, far_f: Rect2) -> void:
+	var beam_h: float = max(2.0, (near_f.position.y - far_f.position.y) * 0.15)
+	if beam_h < 1.5:
+		return
+	draw_rect(Rect2(
+		far_f.position.x, far_f.position.y - beam_h * 0.5,
+		far_f.size.x, beam_h), COLOR_BEAM)
+
+# Grout lines on a floor checker quad.
+func _draw_floor_grout(near_f: Rect2, far_f: Rect2) -> void:
+	var y_far: float = far_f.position.y + far_f.size.y
+	var y_near: float = near_f.position.y + near_f.size.y
+	if y_near - y_far < 4:
+		return
+	var mid_y: float = (y_far + y_near) * 0.5
+	# Horizontal grout at mid-Y.
+	draw_line(Vector2(near_f.position.x, mid_y),
+		Vector2(near_f.position.x + near_f.size.x, mid_y), COLOR_FLOOR_GROUT, 1.0)
+	# Vertical grout at center-X (between the two checker columns).
+	var mid_x_near: float = (near_f.position.x + near_f.position.x + near_f.size.x) * 0.5
+	var mid_x_far: float = (far_f.position.x + far_f.position.x + far_f.size.x) * 0.5
+	draw_line(Vector2(mid_x_far, y_far), Vector2(mid_x_near, y_near), COLOR_FLOOR_GROUT, 1.0)
+
+# When a side corridor is OPEN, draw the visible geometry through the
+# opening: (a) the wall "return" (the thickness of the wall at the corner)
+# and (b) any back wall visible at the end of the side corridor.
+func _draw_side_opening(near_f: Rect2, far_f: Rect2, is_left: bool,
+		tile: Vector2i, side_v: Vector2i, fwd_v: Vector2i,
+		fog: float, torch: float) -> void:
+	var wall_col: Color = _wall_color_at(fog).lerp(COLOR_FOG, fog * 0.55)
+	wall_col = wall_col.darkened(0.12)
+	if torch > 0.0:
+		wall_col = wall_col.lerp(COLOR_TORCH, torch * 0.5)
+
+	# (a) Thin wall return: only draw when there IS a wall around the
+	# corner (the tile ahead on this side). The return shows the edge
+	# thickness of that wall, NOT a solid fill across the opening.
+	var fwd_tile: Vector2i = tile + fwd_v
+	if _is_wall_or_oob(fwd_tile + side_v):
+		# The wall at depth+1 extends onto this side. Draw the perpendicular
+		# face as a thin strip at the far frame edge.
+		var strip_w: float = max(2.0, (near_f.size.x - far_f.size.x) * 0.12)
+		if is_left:
+			draw_rect(Rect2(far_f.position.x - strip_w, far_f.position.y,
+				strip_w, far_f.size.y), wall_col)
+		else:
+			var rx_far: float = far_f.position.x + far_f.size.x
+			draw_rect(Rect2(rx_far, far_f.position.y,
+				strip_w, far_f.size.y), wall_col)
+
+	# (b) Side corridor back wall: one tile into the side corridor looking
+	# forward. If that tile's forward neighbour is a wall, draw a recessed
+	# face visible through the opening.
+	var side_tile: Vector2i = tile + side_v
+	var side_far_tile: Vector2i = side_tile + fwd_v
+	if _is_wall_or_oob(side_far_tile):
+		var recessed_col: Color = _wall_color_at(fog + 0.15).lerp(COLOR_FOG, (fog + 0.15) * 0.5)
+		if is_left:
+			var gap_w: float = far_f.position.x - near_f.position.x
+			if gap_w > 3.0:
+				draw_rect(Rect2(near_f.position.x, far_f.position.y,
+					gap_w, far_f.size.y), recessed_col)
+		else:
+			var rx_far: float = far_f.position.x + far_f.size.x
+			var rx_near: float = near_f.position.x + near_f.size.x
+			var gap_w: float = rx_near - rx_far
+			if gap_w > 3.0:
+				draw_rect(Rect2(rx_far, far_f.position.y,
+					gap_w, far_f.size.y), recessed_col)
 
 # Torch flicker: add warm glow on walls near intersections.
 func _torch_brightness(depth: int) -> float:
