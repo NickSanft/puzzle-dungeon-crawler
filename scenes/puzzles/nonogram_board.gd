@@ -192,22 +192,24 @@ func _build_ui() -> void:
 	mode_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	root.add_child(mode_row)
 	var fill_btn := Button.new()
+	var mark_btn := Button.new()
 	fill_btn.text = "Fill"
 	fill_btn.toggle_mode = true
 	fill_btn.button_pressed = not _touch_mark_mode
 	fill_btn.custom_minimum_size = Vector2(80, 44)
 	PuzzleStyle.apply_button_style(fill_btn,
 		PuzzleStyle.button_style(PuzzleStyle.NONO_CELL_FILLED.darkened(0.3), 0.15, PuzzleStyle.NONO_CELL_FILLED))
-	fill_btn.pressed.connect(func(): _touch_mark_mode = false; _refresh_mode_buttons(fill_btn, mark_btn))
-	mode_row.add_child(fill_btn)
-	var mark_btn := Button.new()
 	mark_btn.text = "Mark X"
 	mark_btn.toggle_mode = true
 	mark_btn.button_pressed = _touch_mark_mode
 	mark_btn.custom_minimum_size = Vector2(80, 44)
 	PuzzleStyle.apply_button_style(mark_btn,
 		PuzzleStyle.button_style(PuzzleStyle.NONO_CELL_MARKED.darkened(0.2), 0.15, PuzzleStyle.NONO_CELL_MARKED))
+	# Both buttons exist before connecting signals so the lambdas can capture
+	# each other for the toggle-pair behaviour.
+	fill_btn.pressed.connect(func(): _touch_mark_mode = false; _refresh_mode_buttons(fill_btn, mark_btn))
 	mark_btn.pressed.connect(func(): _touch_mark_mode = true; _refresh_mode_buttons(fill_btn, mark_btn))
+	mode_row.add_child(fill_btn)
 	mode_row.add_child(mark_btn)
 
 	var bottom := HBoxContainer.new()

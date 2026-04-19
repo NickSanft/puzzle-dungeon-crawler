@@ -15,15 +15,6 @@ run/main_scene="res://scenes/ui/main.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
 
-[display]
-
-window/size/viewport_width=1280
-window/size/viewport_height=720
-window/size/resizable=true
-window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
-window/handheld/orientation=6
-
 [autoload]
 
 RNG="*res://scripts/core/rng.gd"
@@ -32,6 +23,14 @@ GameState="*res://scripts/core/game_state.gd"
 RunManager="*res://scripts/core/run_manager.gd"
 Audio="*res://scripts/core/audio.gd"
 LayoutManager="*res://scripts/core/layout_manager.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/handheld/orientation=6
 
 [dotnet]
 

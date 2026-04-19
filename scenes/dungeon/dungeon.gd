@@ -2,10 +2,14 @@ class_name Dungeon
 extends Node2D
 
 # --- First-person view config ---
-const VIEW_W := 480
-const VIEW_H := 352
+# Default reference size; can be resized at runtime via set_view_size().
+const VIEW_W_DEFAULT := 480
+const VIEW_H_DEFAULT := 352
 const MAX_VIS_DEPTH := 6
 const DEPTH_SCALE := 0.62  # concentric-frame shrink per depth
+
+var _view_w: float = VIEW_W_DEFAULT
+var _view_h: float = VIEW_H_DEFAULT
 
 # --- Minimap ---
 const MINIMAP_TILE := 6
@@ -293,11 +297,23 @@ func _is_wall_or_oob(t: Vector2i) -> bool:
 static func _perpendicular(facing: int) -> Vector2i:
 	return FACING_VECTORS[(facing + 1) % 4]
 
+func set_view_size(w: float, h: float) -> void:
+	_view_w = max(200.0, w)
+	_view_h = max(160.0, h)
+	queue_redraw()
+
+# Test-only static variant for unit tests; uses the default size.
 static func _frame_at(depth: float) -> Rect2:
 	var s: float = pow(DEPTH_SCALE, depth)
-	var w: float = VIEW_W * s
-	var h: float = VIEW_H * s
-	return Rect2((VIEW_W - w) * 0.5, (VIEW_H - h) * 0.5, w, h)
+	var w: float = VIEW_W_DEFAULT * s
+	var h: float = VIEW_H_DEFAULT * s
+	return Rect2((VIEW_W_DEFAULT - w) * 0.5, (VIEW_H_DEFAULT - h) * 0.5, w, h)
+
+func _frame(depth: float) -> Rect2:
+	var s: float = pow(DEPTH_SCALE, depth)
+	var w: float = _view_w * s
+	var h: float = _view_h * s
+	return Rect2((_view_w - w) * 0.5, (_view_h - h) * 0.5, w, h)
 
 # --- Drawing ---
 
@@ -318,23 +334,21 @@ func _draw_first_person() -> void:
 	var parallax_x: float = 0.0
 
 	# --- Ceiling / floor gradients (6 strips each) -----------------------
-	var half_h: float = VIEW_H * 0.5
+	var half_h: float = _view_h * 0.5
 	var grad_steps: int = 6
 	for i in grad_steps:
 		var t0: float = float(i) / float(grad_steps)
 		var t1: float = float(i + 1) / float(grad_steps)
-		# Ceiling: dark at top → lighter at horizon
 		var c_top: Color = COLOR_CEILING_TOP.lerp(COLOR_CEILING_HORIZON, t0)
 		var c_bot: Color = COLOR_CEILING_TOP.lerp(COLOR_CEILING_HORIZON, t1)
 		var cy: float = t0 * half_h
 		var ch: float = (t1 - t0) * half_h
-		draw_rect(Rect2(0, cy, VIEW_W, ch), c_top.lerp(c_bot, 0.5))
-		# Floor: dark at horizon → lighter at bottom
+		draw_rect(Rect2(0, cy, _view_w, ch), c_top.lerp(c_bot, 0.5))
 		var f_top: Color = COLOR_FLOOR_HORIZON.lerp(COLOR_FLOOR_BOTTOM, t0)
 		var f_bot: Color = COLOR_FLOOR_HORIZON.lerp(COLOR_FLOOR_BOTTOM, t1)
 		var fy: float = half_h + t0 * half_h
 		var fh: float = (t1 - t0) * half_h
-		draw_rect(Rect2(0, fy, VIEW_W, fh), f_top.lerp(f_bot, 0.5))
+		draw_rect(Rect2(0, fy, _view_w, fh), f_top.lerp(f_bot, 0.5))
 
 	var fwd_v: Vector2i = FACING_VECTORS[_player_facing]
 	var left_v: Vector2i = FACING_VECTORS[(_player_facing + 3) % 4]
@@ -361,7 +375,7 @@ func _draw_first_person() -> void:
 		var back_tile: Vector2i = _player_pos + fwd_v * blocker
 		var back_col: Color = _wall_color_at(fog_t).lerp(COLOR_FOG, fog_t * 0.6)
 		back_col = _varied_wall_color(back_col, back_tile, 2)
-		var back_frame: Rect2 = _frame_at(float(blocker) + depth_offset)
+		var back_frame: Rect2 = _frame(float(blocker) + depth_offset)
 		back_frame.position.x += parallax_x
 		draw_rect(back_frame, back_col)
 		_draw_back_wall_stones(back_frame)
@@ -375,8 +389,8 @@ func _draw_first_person() -> void:
 	# Also: floor pattern, torch glow, door frames.
 	for depth in range(last_open, -1, -1):
 		var tile_pos: Vector2i = _player_pos + fwd_v * depth
-		var near_frame: Rect2 = _frame_at(float(depth) + depth_offset)
-		var far_frame: Rect2 = _frame_at(float(depth + 1) + depth_offset)
+		var near_frame: Rect2 = _frame(float(depth) + depth_offset)
+		var far_frame: Rect2 = _frame(float(depth + 1) + depth_offset)
 		near_frame.position.x += parallax_x
 		far_frame.position.x += parallax_x
 		var fog_near: float = float(depth) / float(MAX_VIS_DEPTH)
@@ -678,13 +692,13 @@ func _torch_brightness(depth: int) -> float:
 	return flicker
 
 func _draw_trigger_marker(depth: float, parallax_x: float, trigger_type: String) -> void:
-	var near_frame: Rect2 = _frame_at(depth)
-	var far_frame: Rect2 = _frame_at(depth + 1)
+	var near_frame: Rect2 = _frame(depth)
+	var far_frame: Rect2 = _frame(depth + 1)
 	var y_far: float = far_frame.position.y + far_frame.size.y
 	var y_near: float = near_frame.position.y + near_frame.size.y
 	var mid_y: float = (y_far + y_near) * 0.5
 	var half_h: float = max(2.0, (y_near - y_far) * 0.35)
-	var cx: float = VIEW_W * 0.5 + parallax_x
+	var cx: float = _view_w * 0.5 + parallax_x
 	var half_w: float = max(3.0, far_frame.size.x * 0.25)
 	# Glow pulse — triggers shimmer so they're visible from afar.
 	var pulse: float = 1.0 + 0.18 * sin(Time.get_ticks_msec() * 0.004)
@@ -705,12 +719,12 @@ func _draw_trigger_marker(depth: float, parallax_x: float, trigger_type: String)
 func _draw_turn_fade() -> void:
 	# Fade down then back up, peaking at midpoint. Hides the facing snap.
 	var alpha: float = sin(_anim_progress * PI) * 0.75
-	draw_rect(Rect2(0, 0, VIEW_W, VIEW_H), Color(0, 0, 0, alpha))
+	draw_rect(Rect2(0, 0, _view_w, _view_h), Color(0, 0, 0, alpha))
 
 func _draw_minimap() -> void:
 	var mw: int = _tw * MINIMAP_TILE
 	var mh: int = _th * MINIMAP_TILE
-	var origin := Vector2(VIEW_W - mw - MINIMAP_MARGIN, MINIMAP_MARGIN)
+	var origin := Vector2(_view_w - mw - MINIMAP_MARGIN, MINIMAP_MARGIN)
 	draw_rect(Rect2(origin - Vector2(4, 4), Vector2(mw + 8, mh + 8)), COLOR_MINIMAP_BG)
 	# Base tiles.
 	for y in _th:

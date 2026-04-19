@@ -57,6 +57,7 @@ func _ready() -> void:
 	# Touch controls + pause button.
 	_touch_controls = TouchControlsScene.instantiate()
 	_touch_controls.key_pressed.connect(_on_touch_key)
+	_touch_controls.visibility_changed.connect(_resize_dungeon_view)
 	add_child(_touch_controls)
 	if _resuming and SaveSystem.has_saved_run():
 		_restore_from_save()
@@ -92,17 +93,22 @@ func _restore_from_save() -> void:
 	_set_backdrop(false)
 	_message.text = "Continuing your run on floor %d." % GameState.current_floor
 
-func _apply_layout(is_portrait: bool, _is_compact: bool) -> void:
-	if _dungeon_layer == null:
+func _apply_layout(_is_portrait: bool, _is_compact: bool) -> void:
+	_resize_dungeon_view()
+
+func _resize_dungeon_view() -> void:
+	if _dungeon_layer == null or _dungeon == null:
 		return
 	var vp: Vector2 = get_viewport().get_visible_rect().size
-	if is_portrait:
-		# Stack: HUD on top, dungeon centered just below it, touch D-pad
-		# anchored to the bottom of the screen.
-		var dungeon_w: float = 480.0
-		_dungeon_layer.position = Vector2((vp.x - dungeon_w) * 0.5, 110)
-	else:
-		_dungeon_layer.position = Vector2(40, 80)
+	# Reserve space for HUD on top + touch D-pad on bottom (~150 px when shown).
+	var hud_top: float = 90.0
+	var dpad_h: float = 160.0 if (_touch_controls != null and _touch_controls.visible) else 24.0
+	var margin_x: float = 24.0
+	var view_w: float = max(320.0, vp.x - margin_x * 2.0)
+	var view_h: float = max(200.0, vp.y - hud_top - dpad_h)
+	_dungeon_layer.position = Vector2((vp.x - view_w) * 0.5, hud_top)
+	if _dungeon.has_method("set_view_size"):
+		_dungeon.set_view_size(view_w, view_h)
 
 func _on_touch_key(keycode: int) -> void:
 	if _paused or _dungeon == null:
