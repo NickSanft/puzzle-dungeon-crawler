@@ -239,10 +239,13 @@ func _test_wordle(t: TestFramework) -> void:
 	t.assert_true(w4.size() >= 50, "4-letter list has enough words (%d)" % w4.size())
 	t.assert_true(w5.size() >= 50, "5-letter list has enough words (%d)" % w5.size())
 	t.assert_true(w6.size() >= 50, "6-letter list has enough words (%d)" % w6.size())
-	for word in w5:
-		t.assert_eq(str(word).length(), 5, "5-letter word '%s' has correct length" % word)
-		if str(word).length() != 5:
-			break
+	# Validate every word in every list — catches truncation typos.
+	for length_check in [4, 5, 6]:
+		var pool: Array = WordleWordList.words_for_length(length_check)
+		for word in pool:
+			var w: String = str(word)
+			t.assert_eq(w.length(), length_check,
+				"%d-letter list contains '%s' with length %d" % [length_check, w, w.length()])
 	# Feedback: exact match = all green.
 	var fb_exact: Array = WordlePuzzle.evaluate("CRANE", "CRANE")
 	for i in 5:
@@ -251,13 +254,18 @@ func _test_wordle(t: TestFramework) -> void:
 	var fb_none: Array = WordlePuzzle.evaluate("BLIMP", "CRANE")
 	for i in 5:
 		t.assert_eq(int(fb_none[i]), WordlePuzzle.Feedback.GREY, "no-match pos %d is GREY" % i)
-	# Feedback: mixed.
+	# Feedback: mixed. AROSE vs CRANE
+	# A(0) vs C — A is in target at pos 2 → YELLOW
+	# R(1) vs R — same letter, same pos → GREEN
+	# O(2) vs A — O not in target → GREY
+	# S(3) vs N — S not in target → GREY
+	# E(4) vs E — same letter, same pos → GREEN
 	var fb_mix: Array = WordlePuzzle.evaluate("AROSE", "CRANE")
 	t.assert_eq(int(fb_mix[0]), WordlePuzzle.Feedback.YELLOW, "'A' in AROSE vs CRANE is YELLOW")
-	t.assert_eq(int(fb_mix[1]), WordlePuzzle.Feedback.YELLOW, "'R' in AROSE vs CRANE is YELLOW")
+	t.assert_eq(int(fb_mix[1]), WordlePuzzle.Feedback.GREEN, "'R' in AROSE vs CRANE is GREEN (same pos)")
 	t.assert_eq(int(fb_mix[2]), WordlePuzzle.Feedback.GREY, "'O' in AROSE vs CRANE is GREY")
 	t.assert_eq(int(fb_mix[3]), WordlePuzzle.Feedback.GREY, "'S' in AROSE vs CRANE is GREY")
-	t.assert_eq(int(fb_mix[4]), WordlePuzzle.Feedback.YELLOW, "'E' in AROSE vs CRANE is YELLOW")
+	t.assert_eq(int(fb_mix[4]), WordlePuzzle.Feedback.GREEN, "'E' in AROSE vs CRANE is GREEN (same pos)")
 	# Generator produces a valid puzzle.
 	RNG.set_seed(99)
 	var p: WordlePuzzle = WordleGenerator.generate(2)
