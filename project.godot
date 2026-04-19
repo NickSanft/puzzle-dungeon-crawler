@@ -21,7 +21,8 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/size/resizable=true
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
+window/stretch/aspect="expand"
+window/handheld/orientation=6
 
 [autoload]
 
@@ -30,6 +31,7 @@ SaveSystem="*res://scripts/core/save_system.gd"
 GameState="*res://scripts/core/game_state.gd"
 RunManager="*res://scripts/core/run_manager.gd"
 Audio="*res://scripts/core/audio.gd"
+LayoutManager="*res://scripts/core/layout_manager.gd"
 
 [dotnet]
 

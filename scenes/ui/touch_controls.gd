@@ -7,30 +7,59 @@ signal key_pressed(keycode: int)
 const BTN_SIZE := 64
 const BTN_GAP := 6
 
-var _visible_override: bool = false
+var _visible_override: bool = true  # default visible on first frame; refines after
+var _hidden_by_overlay: bool = false  # hidden when a puzzle/shop overlay is open
 var _touch_detected: bool = false
+var _keyboard_recently_used: bool = false
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build_ui()
-	visible = _should_show()
+	LayoutManager.layout_changed.connect(_on_layout_changed)
+	_refresh_visibility()
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
-		if not _touch_detected:
-			_touch_detected = true
-			visible = _should_show()
+		_touch_detected = true
+		_keyboard_recently_used = false
+		_refresh_visibility()
 	elif event is InputEventKey:
-		if _touch_detected:
-			_touch_detected = false
-			visible = _should_show()
+		# Only treat as "keyboard user" if it's an actual movement key — not
+		# every keypress (e.g. typing in Wordle).
+		if event.keycode in [KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E,
+				KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT]:
+			_keyboard_recently_used = true
+			_refresh_visibility()
 
 func set_visible_override(on: bool) -> void:
 	_visible_override = on
+	_refresh_visibility()
+
+func set_hidden_by_overlay(on: bool) -> void:
+	_hidden_by_overlay = on
+	_refresh_visibility()
+
+func _on_layout_changed(_portrait: bool, _compact: bool) -> void:
+	_refresh_visibility()
+
+func _refresh_visibility() -> void:
 	visible = _should_show()
 
 func _should_show() -> bool:
-	return _visible_override or _touch_detected or bool(SaveSystem.setting("touch_controls", false))
+	if _hidden_by_overlay:
+		return false
+	# Layered detection — any signal turns the D-pad on:
+	# 1. Player explicitly enabled in Settings
+	# 2. Touch event observed (touch device)
+	# 3. Web/mobile platform with a compact viewport
+	# 4. Override flag (used at scene start to default-show on small screens)
+	if bool(SaveSystem.setting("touch_controls", false)):
+		return true
+	if _touch_detected and not _keyboard_recently_used:
+		return true
+	if LayoutManager.is_mobile_like():
+		return true
+	return false
 
 func _build_ui() -> void:
 	# Anchored to bottom-center of the screen.

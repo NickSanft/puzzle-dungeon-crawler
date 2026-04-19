@@ -23,7 +23,7 @@ const BOSS_SIZE := 10
 @onready var _hud: Label = $HUD/HPGlimbos
 @onready var _message: Label = $HUD/Message
 @onready var _reveal_btn: Button = $HUD/DebugRow/RevealMap
-@onready var _pause_btn: Button = $HUD/DebugRow/PauseBtn
+@onready var _pause_btn: Button = $PauseBtn
 @onready var _dungeon_layer: Node2D = $DungeonLayer
 @onready var _overlay: Control = $Overlay
 @onready var _backdrop: ColorRect = $Overlay/Backdrop
@@ -52,6 +52,8 @@ func _ready() -> void:
 	GameState.glimbos_earned.connect(func(_a, _b): _update_hud())
 	_reveal_btn.toggled.connect(_on_reveal_toggled)
 	_pause_btn.pressed.connect(_open_pause)
+	LayoutManager.layout_changed.connect(_apply_layout)
+	_apply_layout(LayoutManager.is_portrait, LayoutManager.is_compact)
 	# Touch controls + pause button.
 	_touch_controls = TouchControlsScene.instantiate()
 	_touch_controls.key_pressed.connect(_on_touch_key)
@@ -89,6 +91,18 @@ func _restore_from_save() -> void:
 	_clear_overlay()
 	_set_backdrop(false)
 	_message.text = "Continuing your run on floor %d." % GameState.current_floor
+
+func _apply_layout(is_portrait: bool, _is_compact: bool) -> void:
+	if _dungeon_layer == null:
+		return
+	var vp: Vector2 = get_viewport().get_visible_rect().size
+	if is_portrait:
+		# Stack: HUD on top, dungeon centered just below it, touch D-pad
+		# anchored to the bottom of the screen.
+		var dungeon_w: float = 480.0
+		_dungeon_layer.position = Vector2((vp.x - dungeon_w) * 0.5, 110)
+	else:
+		_dungeon_layer.position = Vector2(40, 80)
 
 func _on_touch_key(keycode: int) -> void:
 	if _paused or _dungeon == null:
@@ -553,6 +567,9 @@ func _set_backdrop(on: bool) -> void:
 		return
 	_backdrop.visible = on
 	_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
+	# Hide the touch D-pad while puzzles/shop are open so taps don't bleed through.
+	if _touch_controls != null:
+		_touch_controls.set_hidden_by_overlay(on)
 
 func _update_hud() -> void:
 	var daily_tag := "  [DAILY]" if GameState.is_daily_run else ""
