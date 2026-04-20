@@ -57,14 +57,14 @@ func _make_card(entry: Dictionary) -> Control:
 
 	var blurb := Label.new()
 	blurb.text = entry.blurb
-	blurb.autostack_mode = TextServer.AUTOWRAP_WORD_SMART
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.custom_minimum_size = Vector2(200, 70)
 	blurb.add_theme_font_size_override("font_size", PuzzleStyle.FONT_BUTTON)
 	v.add_child(blurb)
 
 	var effects := Label.new()
 	effects.text = _format_effects(entry.effects as Dictionary)
-	effects.autostack_mode = TextServer.AUTOWRAP_WORD_SMART
+	effects.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	effects.custom_minimum_size = Vector2(200, 60)
 	effects.add_theme_font_size_override("font_size", PuzzleStyle.FONT_BUTTON)
 	effects.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
