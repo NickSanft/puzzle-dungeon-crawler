@@ -14,19 +14,19 @@ func _ready() -> void:
 	center.anchor_bottom = 1.0
 	add_child(center)
 
-	var wrap := VBoxContainer.new()
-	wrap.add_theme_constant_override("separation", 12)
-	center.add_child(wrap)
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 12)
+	center.add_child(stack)
 
 	var title := Label.new()
 	title.text = "Choose your Scribe"
 	title.add_theme_font_size_override("font_size", 28)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	wrap.add_child(title)
+	stack.add_child(title)
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
-	wrap.add_child(row)
+	stack.add_child(row)
 	for entry in Characters.ROSTER:
 		row.add_child(_make_card(entry))
 
@@ -57,14 +57,14 @@ func _make_card(entry: Dictionary) -> Control:
 
 	var blurb := Label.new()
 	blurb.text = entry.blurb
-	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	blurb.autostack_mode = TextServer.AUTOWRAP_WORD_SMART
 	blurb.custom_minimum_size = Vector2(200, 70)
 	blurb.add_theme_font_size_override("font_size", PuzzleStyle.FONT_BUTTON)
 	v.add_child(blurb)
 
 	var effects := Label.new()
 	effects.text = _format_effects(entry.effects as Dictionary)
-	effects.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	effects.autostack_mode = TextServer.AUTOWRAP_WORD_SMART
 	effects.custom_minimum_size = Vector2(200, 60)
 	effects.add_theme_font_size_override("font_size", PuzzleStyle.FONT_BUTTON)
 	effects.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))

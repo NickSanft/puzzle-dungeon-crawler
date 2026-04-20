@@ -511,7 +511,7 @@ func _draw_floor_pattern(near_f: Rect2, far_f: Rect2, depth: int, depth_offset: 
 		Vector2(x_right_near, y_near), Vector2(mid_x_near, y_near)]), col_a)
 
 # Draw a doorway frame when a trigger is at a certain depth.
-func _draw_door_frame(near_f: Rect2, far_f: Rect2, trigger_type: String) -> void:
+func _draw_door_frame(_near_f: Rect2, far_f: Rect2, trigger_type: String) -> void:
 	var col: Color = _trigger_color(trigger_type).lerp(COLOR_DOOR_FRAME, 0.5)
 	# Left pillar
 	draw_line(Vector2(far_f.position.x + 4, far_f.position.y),
@@ -545,7 +545,7 @@ func _varied_wall_color(base: Color, tile: Vector2i, side: int) -> Color:
 
 # Draw horizontal mortar joints + a vertical seam on a wall quad to suggest
 # stone blocks. Works for both left and right side walls.
-func _draw_stone_lines(quad: PackedVector2Array, depth: int) -> void:
+func _draw_stone_lines(quad: PackedVector2Array, _depth: int) -> void:
 	# quad = [near_top, far_top, far_bot, near_bot] (4 corners)
 	var near_top: Vector2 = quad[0]
 	var far_top: Vector2 = quad[1]

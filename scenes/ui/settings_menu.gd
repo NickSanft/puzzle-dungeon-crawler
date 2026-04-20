@@ -79,10 +79,10 @@ func _make_palette_picker() -> Control:
 		row.add_child(_palette_swatch(id, str(entry.name), entry.accent))
 	return v
 
-func _palette_swatch(id: String, name: String, accent: Color) -> Control:
+func _palette_swatch(id: String, label: String, accent: Color) -> Control:
 	var btn := Button.new()
 	btn.custom_minimum_size = Vector2(72, 44)
-	btn.text = name
+	btn.text = label
 	btn.focus_mode = Control.FOCUS_NONE
 	var selected: bool = str(SaveSystem.data.get("cosmetic_palette", "")) == id
 	var border: Color = Color(1, 1, 1, 0.9) if selected else Color(1, 1, 1, 0.12)

@@ -66,6 +66,7 @@ func start_ambient(intensity: float = 0.5) -> void:
 	var stream: AudioStreamWAV = _cache[key]
 	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	stream.loop_begin = 0
+	@warning_ignore("integer_division")
 	stream.loop_end = (stream.data.size() / 2) - 1
 	_ambient.stream = stream
 	_ambient.volume_db = lerp(-24.0, -12.0, intensity)

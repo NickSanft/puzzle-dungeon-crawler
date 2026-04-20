@@ -51,6 +51,7 @@ func begin_floor() -> void:
 		candidates.remove_at(0)
 	# Shop at a mid-distance dead-end so it's not too close to either extreme.
 	if candidates.size() > 0:
+		@warning_ignore("integer_division")
 		var mid_idx: int = candidates.size() / 2
 		triggers.append({"pos": candidates[mid_idx], "type": "SHOP"})
 		candidates.remove_at(mid_idx)

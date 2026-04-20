@@ -48,6 +48,7 @@ static func generate(cell_w: int, cell_h: int) -> Dictionary:
 		visited[nxt] = true
 		var cell_tile: Vector2i = Vector2i(cell.x * 2 + 1, cell.y * 2 + 1)
 		var next_tile: Vector2i = Vector2i(nxt.x * 2 + 1, nxt.y * 2 + 1)
+		@warning_ignore("integer_division")
 		var wall_tile: Vector2i = (cell_tile + next_tile) / 2
 		tiles[next_tile.y][next_tile.x] = FLOOR
 		tiles[wall_tile.y][wall_tile.x] = FLOOR
